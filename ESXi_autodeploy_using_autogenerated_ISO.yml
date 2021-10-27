@@ -1,0 +1,447 @@
+---
+
+# Performing automated ESXi 7.0 U2 Boot from SAN installation on Gen10 Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
+
+# Adding a DNS record for the bare metal server in the DNS server 
+
+- name: Creating a DNS record for the bare metal ESXi server
+  hosts: ESX
+  gather_facts: no
+  vars_files:
+    - vars/ESXi_provisioning.yml
+    - vars/windows_dns.yml
+    # - vars/encrypted_credentials.yml
+  tasks:
+    - name: Adding "{{ inventory_hostname }}" with "{{ host_management_ip }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
+      community.windows.win_dns_record:
+        name: "{{ inventory_hostname }}"
+        type: "A"
+        value: "{{ host_management_ip }}"
+        zone: "{{ domain }}"
+        state: present
+      delegate_to: "{{ dns_server }}" 
+
+
+- name: Performing an automated ESXi 7.0 U2 Boot from SAN installation on a Gen10 Synergy Module using a kickstart and a OneView Server Profile Template
+  hosts: ESX
+  collections:
+    - hpe.oneview
+  gather_facts: no
+  vars_files:
+    - vars/ESXi_provisioning.yml
+    - vars/vcentervars.yml
+    #- vars/encrypted_credentials.yml
+  vars:
+    # HPE Synergy Composer configuration
+    - config: "{{ playbook_dir }}/oneview_config.json"
+
+    - inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
+
+    - ansible_python_interpreter: python3
+    - ansible_host_key_checking: false
+    - validate_certs: false
+
+  tasks: 
+
+  # Preparing a staging folder for the ESX custom ISO
+
+    - name: Checking if HPE ESXi Custom ISO file exists on "{{lookup("pipe","hostname")}}"
+      stat:
+        path: "{{ src_iso_directory }}/{{ src_iso_file }}"
+      register: p
+      delegate_to: localhost
+
+    - name: Creating the directory "{{ src_iso_directory }}" to host the ISO file on "{{ lookup("pipe","hostname") }}"
+      file:
+        path: "{{ src_iso_directory }}"
+        state: directory
+      delegate_to: localhost
+
+    - name: Downloading file "{{ src_iso_file }}" to "{{ lookup("pipe","hostname") }}" if not present
+      get_url:
+        url: "{{ src_iso_url }}/{{ src_iso_file }}"
+        dest: "{{ src_iso_directory }}"
+        validate_certs: no
+      when: p.stat.exists == False
+      delegate_to: localhost      
+
+    - name: Checking if HPE ESXi Custom ISO file extraction is necessary on "{{ lookup("pipe","hostname") }}"
+      stat:
+        path: /opt/baremetal/{{ inventory_hostname }}
+      register: p
+      delegate_to: localhost     
+
+    - name: Creating /mnt/{{ inventory_hostname }} on "{{lookup("pipe","hostname")}}" if it does not exist
+      ansible.builtin.file:
+        path: /mnt/{{ inventory_hostname }}
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: Creating /opt/baremetal/{{ inventory_hostname }}/ on "{{lookup("pipe","hostname")}}" if it does not exist
+      ansible.builtin.file:
+        path: /opt/baremetal/{{ inventory_hostname }}
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: Creating /opt/baremetal/temp/{{ inventory_hostname }}/ on "{{lookup("pipe","hostname")}}" if it does not exist
+      ansible.builtin.file:
+        path: /opt/baremetal/temp/{{ inventory_hostname }}
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: Creating /opt/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel on "{{lookup("pipe","hostname")}}" if it does not exist
+      ansible.builtin.file:
+        path: /opt/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: Mounting HPE ESXi Custom ISO and copying ISO files to /opt/baremetal/{{ inventory_hostname }}/ on "{{lookup("pipe","hostname")}}"
+      shell: |
+        mount -o loop -t iso9660 {{ src_iso_directory }}/{{ src_iso_file }} /mnt/{{ inventory_hostname }}/
+        cp -r /mnt/{{ inventory_hostname }}/* /opt/baremetal/{{ inventory_hostname }}/
+        umount /mnt/{{ inventory_hostname }}
+      args:
+        warn: false # To prevent warning
+      when: p.stat.exists == False
+      delegate_to: localhost      
+       
+# Modifying SYSLINUX and GRUB bootloaders for both legacy and UEFI implementations:    
+
+    - name: Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM
+      shell: |
+        sed -i 's/kernelopt=cdromBoot runweasel/kernelopt=ks=file:\/\/etc\/vmware\/weasel\/ks.cfg/' /opt/baremetal/{{ inventory_hostname }}/boot.cfg
+        sed -i 's/imgpayld.tgz/& --- \/ks.tgz/' /opt/baremetal/{{ inventory_hostname }}/boot.cfg
+      args:
+        warn: false # To prevent warning
+      delegate_to: localhost
+
+    - name: Modifying UEFI bootloader for kickstart installation from CDROM
+      shell: |
+        sed -i 's/kernelopt=cdromBoot runweasel/kernelopt=ks=file:\/\/etc\/vmware\/weasel\/ks.cfg/' /opt/baremetal/{{ inventory_hostname }}/efi/boot/boot.cfg
+        sed -i 's/imgpayld.tgz/& --- \/ks.tgz/' /opt/baremetal/{{ inventory_hostname }}/efi/boot/boot.cfg
+      args:
+        warn: false # To prevent warning
+      delegate_to: localhost
+
+# Creating a Server Profile in HPE OneView from a boot from SAN Server Profile Template:
+
+    - name: Creating Server Profile "{{ inventory_hostname }}" from Server Profile Template "{{ server_template }}"
+      oneview_server_profile:
+        config: "{{ config }}"
+        data:
+          serverProfileTemplateName: "{{ server_template }}"
+          name: "{{ inventory_hostname }}"
+        # serverHardwareUri: "/rest/server-hardware/39313738-3234-584D-5138-323830343848"
+        # server_hardware: Encl1, bay 12
+        # If any hardware is provided, it tries to get one available
+      delegate_to: localhost
+      register: result
+
+    - name: Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]
+      set_fact:
+        server_hardware_name: "{{ server_hardware.name }}"
+        generation: "{{ server_hardware.generation }}"
+        lunuri: "{{ (server_profile.sanStorage.volumeAttachments | selectattr('bootVolumePriority', 'equalto', 'Primary') | map(attribute='volumeUri') | list)[0] }}"
+        mac: "{{ (server_profile.connectionSettings.connections | selectattr('id', 'equalto', 1) | map(attribute='mac') | list)[0] }}"
+
+    #- debug: var=server_profile
+    #- debug: var=serial_number
+    #- debug: var=server_hardware
+    #- debug: var=compliance_preview
+    #- debug: var=created
+
+    #- debug: var=generation
+    #- debug: var=lunuri
+    #- debug: var=mac 
+
+    - name: Showing the result of the Server Profile creation task
+      debug:
+        msg: "Hardware selected: {{ server_hardware_name }} - Result: {{ result.msg }}"
+
+    - name: Collecting volumes information
+      oneview_volume_facts:
+        config: "{{ config }}"
+      delegate_to: localhost
+
+    #- debug: var=storage_volumes
+      
+    - name: Capturing boot LUN size defined in the Server Profile to ensure that ESXi will be installed on this disk using the kickstart file
+      set_fact:
+        size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
+
+    # - debug: var=size
+
+# Creation of the kickstart file
+
+    - name: Creating kickstart file with %pre script to detect the "{{ size }}GB" Boot From SAN volume
+      template:
+        src: files/{{ esxi_build }}/{{ kickstart }}
+        dest: /opt/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel/ks.cfg
+      delegate_to: localhost
+  
+    - name: Preparing ks.cfg kickstart file to make the new ISO
+      file:
+        path: /opt/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel/ks.cfg
+        state: file
+        mode: '0755'
+      delegate_to: localhost  
+
+    - name: Creating the ks.tgz kickstart file to make the new ISO
+      shell: |
+        cd /opt/baremetal/temp/{{ inventory_hostname }}
+        tar czvf ks.tgz *
+      delegate_to: localhost    
+
+    - name: Copying new ks.tgz to /opt/baremetal/{{ inventory_hostname }}/
+      copy:
+        src: /opt/baremetal/temp/{{ inventory_hostname }}/ks.tgz
+        dest: /opt/baremetal/{{ inventory_hostname }}/
+        mode: 0755
+      delegate_to: localhost             
+        
+    - name: Creating customized bootable ISO 
+      shell: >
+        mkisofs
+        -relaxed-filenames
+        -J
+        -R
+        -b isolinux.bin
+        -c boot.cat
+        -no-emul-boot
+        -boot-load-size 4
+        -boot-info-table
+        -eltorito-alt-boot
+        -e efiboot.img
+        -no-emul-boot
+        -o /opt/baremetal/{{ inventory_hostname }}.iso
+        /opt/baremetal/{{ inventory_hostname }}/
+      delegate_to: localhost
+
+    - name: Creating /usr/share/nginx/html/isos/ on "{{lookup("pipe","hostname")}}" if it does not exist
+      file:
+        path: /usr/share/nginx/html/isos/
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+  
+    - name: Moving created ISO to the nginx default html folder of "{{ lookup("pipe","hostname") }}" 
+      shell: |
+        mv /opt/baremetal/{{ inventory_hostname }}.iso /usr/share/nginx/html/isos/
+      delegate_to: localhost
+
+# Starting the OS installation
+
+    - name: Powering on and booting "{{ server_hardware_name }}" from created ISO using iLO Virtual Media 
+      community.general.hpilo_boot:
+        host: "{{ server_hardware.mpHostInfo.mpIpAddresses[1].address }}" 
+        login: Administrator
+        password: password
+        media: cdrom
+        image: 'http://{{ lookup("pipe","hostname") }}/isos/{{ inventory_hostname }}.iso'
+      delegate_to: localhost
+
+    - name: Waiting for ESX installation to complete - waiting for "{{ host_management_ip }}" to respond... 
+      wait_for: 
+        timeout: 1200 
+        host: "{{ host_management_ip }}"
+        port: 80
+      delegate_to: localhost
+      register: boot_wait_time
+    
+    - debug:
+        msg: "{{ inventory_hostname }} installation took {{ (boot_wait_time.elapsed / 60) | round | int }} minutes"
+
+    - name: Wait a little longer so that the ESX host is truly ready to be added to the vcenter
+      wait_for: 
+        timeout: 60
+      delegate_to: localhost
+ 
+# Cleaning up staging files
+
+    - name: Deleting all related files from staging location and web server 
+      shell: |
+        rm -rf {{ inventory_hostname }}
+        rm -rf temp/{{ inventory_hostname }}
+        rm -f /usr/share/nginx/html/isos/{{ inventory_hostname }}.iso
+        rm -rf /mnt/{{ inventory_hostname }}
+      args:
+        chdir: /opt/baremetal
+        warn: false  
+      delegate_to: localhost
+
+# vCenter and ESXi configuration 
+
+    - name: Adding ESXi host "{{ inventory_fqdn }}" to vCenter "{{ vcenter_hostname }}"
+      vmware_host:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        datacenter_name: "{{ datacenter_name }}"
+        cluster_name: "{{ cluster_name }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        esxi_username: "root"
+        esxi_password: "{{ root_password }}"
+        state: present
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Assigning ESXi license to Host 
+      vcenter_license:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        license: "{{ esxi_license }}"
+        state: present
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Adding vmnic1 to standard switch vSwitch0 
+      vmware_vswitch:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        switch: vSwitch0
+        nics:
+          - vmnic1
+        validate_certs: false
+      delegate_to: localhost
+    
+    - name: Adding vMotion Portgroup to standard switch vSwitch0
+      vmware_portgroup:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        switch: "vSwitch0"
+        portgroup: "vMotion"
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Gathering facts about vmnics 
+      community.vmware.vmware_host_vmnic_info:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: "{{ inventory_fqdn }}"
+        validate_certs: false
+      delegate_to: localhost
+      register: host_vmnics
+
+    #- debug: var=host_vmnics
+
+    - name: Capturing available vmnics for the distributed switch creation
+      set_fact:
+        vmnics: "{{ host_vmnics.hosts_vmnics_info | json_query('\"' + inventory_fqdn + '\".available') }}"
+
+    #- debug: var=vmnics 
+    
+    - name: Connecting host to "{{ vcenter_switch_name }}" distributed switch
+      vmware_dvs_host:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        switch_name: "{{ vcenter_switch_name }}"
+        vmnics: "{{ vmnics }}"
+          # - vmnic4
+          # - vmnic5
+        state: present
+        validate_certs: False
+      delegate_to: localhost
+
+    - name: Adding vmkernel mk1 port to "{{ vcenter_switch_name }}" distributed Switch
+      community.vmware.vmware_vmkernel:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ inventory_fqdn }}'
+        dvswitch_name: "{{ vcenter_switch_name }}"
+        portgroup_name: "{{ dportgroup_name }}"
+        network:
+          type: 'dhcp'
+        state: present
+        device: vmk1
+        enable_provisioning: True
+        validate_certs: False
+      delegate_to: localhost
+
+    - name: Changing Advanced Settings with Core Dump Warning Disable 
+      vmware_host_config_manager:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        options:
+          'UserVars.SuppressCoredumpWarning': '1'
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Setting the Power Management Policy to high-performance
+      vmware_host_powermgmt_policy:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        policy: high-performance
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Configuring NTP servers 
+      vmware_host_ntp:
+        hostname: "{{ vcenter_hostname }}"
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        ntp_servers:
+          - pool.ntp.org
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Starting NTP Service and set to start at boot.
+      vmware_host_service_manager:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        validate_certs: false
+        service_name: ntpd
+        service_policy: on
+        state: start
+      delegate_to: localhost
+
+    - name: Starting ESXi Shell Service and setting to enable at boot . . .
+      vmware_host_service_manager:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        validate_certs: false
+        service_name: TSM
+        service_policy: on
+        state: start
+      delegate_to: localhost
+
+    - name: Starting SSH Service and setting to enable at boot.
+      vmware_host_service_manager:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        validate_certs: false
+        service_name: TSM-SSH
+        service_policy: on
+        state: start
+      delegate_to: localhost
+
+    - name: Displaying install completed message
+      debug: 
+        msg: 
+         - '{{ inventory_hostname }}.{{domain}} Installation completed !'
+         - "ESXi is configured and running. It has been added to the vCenter cluster '{{ cluster_name }}'."
+    

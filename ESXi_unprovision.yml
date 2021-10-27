@@ -1,0 +1,138 @@
+---
+- name: Deleting a provisioned ESXi compute module 
+  hosts: ESX
+  collections:
+    - hpe.oneview
+  gather_facts: no
+  vars_files:
+    - vars/ESXi_provisioning.yml
+    - vars/vcentervars.yml
+    #- vars/encrypted_credentials.yml
+  vars:
+    # HPE Synergy Composer configuration
+    - config: "{{ playbook_dir }}/oneview_config.json"
+
+    - inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
+    
+    - ansible_python_interpreter: python3
+    - ansible_host_key_checking: false
+    - validate_certs: false
+
+  tasks: 
+
+    - name: Taking "{{ inventory_fqdn }}" to maintenance mode
+      vmware_maintenancemode:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        timeout: 3600
+        state: present
+        validate_certs: false
+      delegate_to: localhost
+
+    - name: Removing vmkernel mk1 port from "{{ vcenter_switch_name }}" distributed Switch
+      community.vmware.vmware_vmkernel:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        dvswitch_name: "{{ vcenter_switch_name }}"
+        portgroup_name: "{{ dportgroup_name }}"
+        state: absent
+        device: vmk1
+        validate_certs: False
+      delegate_to: localhost
+    
+    - name: Gathering facts about vmnics 
+      community.vmware.vmware_host_vmnic_info:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: "{{ inventory_fqdn }}"
+        validate_certs: false
+      delegate_to: localhost
+      register: host_vmnics
+
+    #- debug: var=host_vmnics
+
+    - name: Capturing available vmnics for the distributed switch creation
+      set_fact:
+        vmnics: "{{ host_vmnics.hosts_vmnics_info | json_query('\"' + inventory_fqdn + '\".dvswitch') }}"
+
+    # - debug: 
+    #     msg: "{{ vmnics |  json_query('\"' + vcenter_switch_name + '\"')   }} "
+
+    - name: Removing host from "{{ vcenter_switch_name }}" distributed Switch
+      vmware_dvs_host:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        switch_name: "{{ vcenter_switch_name }}"
+        vmnics: "{{ vmnics |  json_query('\"' + vcenter_switch_name + '\"')   }} " 
+        state: absent
+        validate_certs: False
+      delegate_to: localhost
+
+    - name: Removing ESXi host "{{ inventory_fqdn }}" from vCenter "{{ vcenter_hostname }}"
+      vmware_host:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        datacenter_name: "{{ datacenter_name }}"
+        cluster_name: "{{ cluster_name }}"
+        esxi_hostname: "{{ inventory_fqdn }}"
+        state: absent
+        validate_certs: false
+      delegate_to: localhost
+
+    - name : Getting server profile "{{ inventory_hostname }}" information
+      oneview_server_profile:
+         config: "{{ config }}"
+         state: "present"
+         data:
+            name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    #- debug: var=server_hardware
+
+    - name: Powering off server hardware "{{ server_hardware.name }}"
+      oneview_server_hardware:
+        config: "{{ config }}"
+        state: power_state_set
+        data:
+            name : "{{ server_hardware.name }}"
+            powerStateData:
+                powerState: "Off"
+                powerControl: "PressAndHold"
+      delegate_to: localhost
+
+    - name: Deleting server profile "{{ inventory_hostname }}"
+      oneview_server_profile:
+        config: "{{ config }}"
+        state: "absent"
+        data:
+          name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      register: result
+
+    - name: Result of the task to delete the server profile
+      debug:
+        msg: "{{ result.msg }}"
+
+
+- name: Removing the DNS record for "{{ inventory_hostname }}"
+  hosts: RHEL
+  gather_facts: no
+  vars_files:
+    - vars/ESXi_provisioning.yml
+    - vars/windows_dns.yml
+  tasks:
+    - name: Removing "{{ host_management_ip }}"" from "{{ dns_server }}" 
+      community.windows.win_dns_record:
+        name: "{{ inventory_hostname }}"
+        type: "A"
+        zone: "{{ domain }}"
+        state: absent
+      delegate_to: "{{ dns_server }}" 

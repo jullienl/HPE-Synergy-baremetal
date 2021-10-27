@@ -1,0 +1,31 @@
+---
+# Host information is provided by the inventory hosts file
+# rhel_hostname: "RHEL-Ansible"
+# host_management_ip: "192.168.3.172"
+
+# Name of the HPE OneView Server Profile Template that we will use to generate the HPE OneView Server Profile
+server_template: "RHEL BFS"
+
+domain: "lj.lab"
+gateway: "192.168.1.1"
+nameserver: "192.168.2.1,192.168.2.3"
+netmask: "255.255.252.0"
+
+# OS vendor ISO file information
+src_iso_url: "https://liogw.lj.lab/deployment/rhel83-x64/"
+src_iso_file: "RHEL-8.3-minimum.iso"
+
+# Directory on the Ansible control node where the source ISO will be copied:
+src_iso_directory: "/opt/rhelisosrc"
+
+# Folder located in <Ansible_project_dir>/files to store the kickstart and HPE AMS and SUT files
+# Using the template: RHEL_<version>. <version> can be found in .discinfo file in the root of src_iso_file iso
+rhel_version: "RHEL_8.3.0"
+
+# Name of the kickstart file available in files/RHEL_<version>
+kickstart: "ks-rhel8.3.sh"
+
+# RHEL Repositories to install packages not available in ISO
+RHEL_baseos: "https://liogw.lj.lab/deployment/rhel83-x64/BaseOS"
+RHEL_appstream: "https://liogw.lj.lab/deployment/rhel83-x64/appstream" 
+

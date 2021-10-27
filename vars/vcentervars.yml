@@ -1,0 +1,14 @@
+---
+vcenter_hostname: "vcenter.lj.lab"
+vcenter_username: "administrator@vsphere.local"
+vcenter_password: "xxxxxxxx"  
+root_password: "xxxxxxxx"
+datacenter_name: "Mougins"
+syslog_host: ""
+vcenter_switch_name: "DSwitch-VC100G"
+dportgroup_name: "DPortGroup-VC100G-VLAN10"
+vlan_id: ""
+esxi_license: "xxxxx-xxxxx-xxxxx-xxxxx-xxxxx"
+
+# Name of the cluster 
+cluster_name: "Synergy-Cluster"   # <- Must exist !
