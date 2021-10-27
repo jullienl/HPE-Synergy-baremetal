@@ -27,7 +27,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 ## Configure Ansible control node: 
 
-To configure the Ansible controller node, see `Ansible_control_node_requirements.md` in `/files`
+To configure the Ansible controller node, see [Ansible_control_node_requirements.md](https://github.com/jullienl/Synergy-baremetal/blob/master/files/Ansible_control_node_requirements.md) in `/files`
 
 ## Preparation
 
