@@ -132,16 +132,6 @@ The resources in this repository were tested with:
   - RHEL-8.3.0-20201009.2-x86_64-dvd1.iso
   - VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso
 
-
-## Thank you
-
-Thank you to bryansullins for his inspiring work for [baremetalesxi](https://github.com/bryansullins/baremetalesxi).
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details
-
-
 ## Output sample of ESXi bare metal provisioning playbook 
 
 ```
@@ -543,3 +533,12 @@ changed: [RHEL-deploy -> dc.lj.lab]
 PLAY RECAP ***************************************************************************************************************************************************************************************
 RHEL-deploy                : ok=6    changed=4    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
 ```
+
+
+## Thank you
+
+Thank you to bryansullins for his inspiring work for [baremetalesxi](https://github.com/bryansullins/baremetalesxi).
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details
