@@ -4,7 +4,7 @@
 ```
 mkdir ~/Projects
 cd ~/Projects
-git clone https://<myrepo> 
+git clone https://github.com/jullienl/Synergy-baremetal
 ```
 
 ## openssh installation
