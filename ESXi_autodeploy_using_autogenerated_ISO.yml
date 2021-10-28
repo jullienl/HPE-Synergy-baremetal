@@ -175,7 +175,7 @@
 
     # - debug: var=size
 
-# Creation of the kickstart file
+# Creation of the ks.tgz kickstart file
 
     - name: Creating kickstart file with %pre script to detect the "{{ size }}GB" Boot From SAN volume
       template:
@@ -202,7 +202,9 @@
         dest: /opt/baremetal/{{ inventory_hostname }}/
         mode: 0755
       delegate_to: localhost             
-        
+
+# Creation of the ISO image
+
     - name: Creating customized bootable ISO 
       shell: >
         mkisofs

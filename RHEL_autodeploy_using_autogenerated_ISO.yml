@@ -175,7 +175,9 @@
         src: files/{{ rhel_version }}/{{ kickstart }}
         dest: /opt/baremetal/{{ inventory_hostname }}/ks.cfg
       delegate_to: localhost
-      
+
+# Creation of the ISO image      
+
     - name: Creating customized bootable ISO 
       shell: >
         mkisofs
