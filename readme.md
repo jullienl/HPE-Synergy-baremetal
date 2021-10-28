@@ -31,7 +31,7 @@ To configure the Ansible controller node, see [Ansible_control_node_requirements
 
 ## Preparation
 
-1. Update all variables located in `<Ansible_project_dir>/vars/`
+1. Update all variables located in `/vars`
   
 2. Copy the desired OS ISO versions on a webserver defined by `{{ src_iso_url }}` and `{{ src_iso_file }}` 
 
@@ -41,7 +41,7 @@ To configure the Ansible controller node, see [Ansible_control_node_requirements
       * 2 for FCoE 
       * 2 for Production network set  
 
-      >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for unused NICs (usually vmnic 4 and 5) to create Distibuted switch for VM traffic. RHEL and Windows playbooks create a team using the first two management NICs   
+        >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for unused NICs (usually vmnic 4 and 5) to create Distibuted switch for VM traffic. RHEL and Windows playbooks create a team using the first two management NICs   
          
    - For Storage, the playbooks look for the boot LUN corresponding to what is defined in the Server Profile so you can use any SAN volume configuration: 
       - One boot from SAN OS LUN volume (a local storage logical volume can also be used)
