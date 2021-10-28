@@ -40,14 +40,13 @@ To configure the Ansible controller node, see [Ansible_control_node_requirements
       * 2 for management 
       * 2 for FCoE 
       * 2 for Production network set  
-
-      
+<br />
       >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for unused NICs (usually vmnic 4 and 5) to create Distibuted switch for VM traffic. RHEL and Windows playbooks create a team using the first two management NICs   
          
    - For Storage, the playbooks look for the boot LUN corresponding to what is defined in the Server Profile so you can use any SAN volume configuration: 
       - One boot from SAN OS LUN volume (a local storage logical volume can also be used)
-      - Optional: other shared/Private SAN volumes for vmfs datastore/cluster volumes can also be defined
-   - For RHEL and Windows provisioning, HPE drivers are installed at the end so it is required to set a firmware baseline with `Firmware only` installation method.
+      - Optional: other Shared/Private SAN volumes for vmfs datastore/cluster volumes can also be defined
+   - For RHEL and Windows provisioning, HPE drivers are installed at the end so it is required to set a firmware baseline with at least `Firmware only` installation method.
 
 ## How to protect sensitive credentials
 
