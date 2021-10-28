@@ -16,7 +16,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 ## Pre-requisites
 
 - HPE Synergy frame configured and at least one unused compute module
-- OneView Server Profile template defined for each desired OS 
+- OneView Server Profile template defined for each desired OS
 - Ansible controller node (see below for configuration) with a drive large enough to host the generated ISO files
 
 ## Ansible control node information:
@@ -36,13 +36,18 @@ To configure the Ansible controller node, see [Ansible_control_node_requirements
 2. Copy the desired OS ISO versions on a webserver defined by `{{ src_iso_url }}` and `{{ src_iso_file }}` 
 
 3. Create a HPE Oneview Server Profile Template with required parameters for each OS type. 
-   - For ESXi, the playbook adds a second management NIC for vswitch0 and looks for unused NICs to create Distibuted switch so you must use 6 network connections:
+   - Use 6 network connections:
       * 2 for management 
       * 2 for FCoE 
       * 2 for Production network set 
+      >**Note**: 
+      > - ESXi playbook adds a second management NIC for vswitch0 and looks for unused NICs (usually vmnic 4 and 5) to create Distibuted switch for the VM traffic
+      > - RHEL and Windows playbooks create a team using the first two management NICs   
+         
    - For Storage, the playbooks look for the boot LUN corresponding to what is defined in the Server Profile so you can use any SAN volume configuration: 
       - One boot from SAN OS LUN volume (a local storage logical volume can also be used)
       - Optional: other shared/Private SAN volumes for vmfs datastore/cluster volumes can also be defined
+   - For RHEL and Windows provisioning, HPE drivers are installed at the end so it is required to set a firmware baseline with `Firmware only` installation method.
 
 ## How to protect sensitive credentials
 
