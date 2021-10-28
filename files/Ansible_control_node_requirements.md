@@ -43,7 +43,7 @@ yum install pykickstart
 ```
 ## Installation of the Ansible Collections used in these playbooks 
 ``` 
-ansible-galaxy collection install -r ~/Projects/files/requirements.yml --force 
+ansible-galaxy collection install -r /files/requirements.yml --force 
 ```
 `--force` is required if you need to upgrade the collections to the latest available versions from the Galaxy server. 
 
