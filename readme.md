@@ -22,6 +22,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 ## Ansible control node information:
 
 - It runs Ansible 
+- Can be a physical server or Virtual Machine
 - It is used as the staging destination for the preparation of the ISO file(s)
 - It runs *nginx* web services to host the created and customized ISO files from which the bare metal servers will boot from using iLO virtual media.
 
@@ -121,7 +122,7 @@ This playbook performs for each inventory host the automated un-provisioning of 
 ## Built and tested with
 
 The resources in this repository were tested with:
-- Ansible control node running on CentOS 8.2: 
+- Ansible control node running on CentOS 8.2 VM: 
   - Ansible 2.9.25 - Python 3.6.8 - python-hpOneView 6.30
   - Community.general 3.8.0 
   - Community.windows 1.7.0 
