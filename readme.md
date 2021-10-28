@@ -39,7 +39,8 @@ To configure the Ansible controller node, see [Ansible_control_node_requirements
    - Use 6 network connections:
       * 2 for management 
       * 2 for FCoE 
-      * 2 for Production network set\
+      * 2 for Production network set<br />
+      <br />
       >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for unused NICs (usually vmnic 4 and 5) to create Distibuted switch for VM traffic. RHEL and Windows playbooks create a team using the first two management NICs   
          
    - For Storage, the playbooks look for the boot LUN corresponding to what is defined in the Server Profile so you can use any SAN volume configuration: 
