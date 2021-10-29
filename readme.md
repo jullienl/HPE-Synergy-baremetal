@@ -38,7 +38,7 @@ The Windows DNS Server to be managed by Ansible should meet below requirements:
 - .NET 4.0 to be installed
 - A WinRM listener should be created and activated
 
-To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https://github.com/ansible/ansible/blob/devel/examples/scripts/ConfigureRemotingForAnsible.ps1) to set up the basics. This script sets up both HTTP and HTTPS listeners with a self-signed certificate and enables the `Basic` authentication option on the service. This is an offical PowerShell script from Ansible repository. 
+To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https://github.com/ansible/ansible/blob/devel/examples/scripts/ConfigureRemotingForAnsible.ps1) on the Windows Server to set up the basics. This script sets up both HTTP and HTTPS listeners with a self-signed certificate and enables the `Basic` authentication option on the service. This is an offical PowerShell script from Ansible repository. 
 To learn more about **Setting up Windows host**, see https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup
 
 ## Preparation
