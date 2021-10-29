@@ -31,7 +31,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 To configure the Ansible controller node, see [Ansible_control_node_requirements.md](https://github.com/jullienl/HPE-Synergy-baremetal/blob/master/files/Ansible_control_node_requirements.md) in `/files`
 
-## Configure the Windows DNS Server 
+## Configure Windows DNS Server 
 
 The Windows DNS Server to be managed by Ansible should meet below requirements:
 - PowerShell 3.0 or newer
