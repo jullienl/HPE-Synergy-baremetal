@@ -23,7 +23,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 ## Ansible control node information
 
 - It runs Ansible 
-- Can be a physical server or Virtual Machine
+- It can be a physical server or a Virtual Machine
 - It is used as the staging destination for the preparation of the ISO file(s)
 - It runs *nginx* web services to host the created and customized ISO files from which the bare metal servers will boot from using iLO virtual media.
 
@@ -43,11 +43,11 @@ To learn more about **Setting up Windows host**, see https://docs.ansible.com/an
 
 ## Preparation
 
-1. Update all variables located in `/vars`
+1. Update all variables located in `/vars`.
   
-2. Copy the desired OS ISO versions on a webserver defined by `{{ src_iso_url }}` and `{{ src_iso_file }}` 
+2. Copy the desired OS ISO versions on a webserver defined by `{{ src_iso_url }}` and `{{ src_iso_file }}` variables.
 
-3. Create a HPE Oneview Server Profile Template with required parameters for each OS type. 
+3. Create a HPE Oneview Server Profile Template with required parameters for each OS type:
    - Use 6 network connections:
       * 2 for management 
       * 2 for FCoE 

@@ -12,7 +12,7 @@ ESX-1 host_management_ip=192.168.3.171
 RHEL-1 host_management_ip=192.168.3.173 
 #RHEL-2 host_management_ip=192.168.3.174
 
-[WIN]
+[Windows]
 WIN-1 host_management_ip=192.168.3.175
 #WIN-2 host_management_ip=192.168.3.176
 

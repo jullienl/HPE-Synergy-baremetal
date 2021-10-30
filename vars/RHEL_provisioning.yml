@@ -25,6 +25,10 @@ rhel_version: "RHEL_8.3.0"
 # Name of the kickstart file available in files/RHEL_<version>
 kickstart: "ks-rhel8.3.sh"
 
+# Name of the HPE Packages founf in <Ansible_project_dir>/files
+AMS_package: "amsd-2.4.1-1571.8.rhel8.x86_64.rpm"
+iSUT_package: "sut-2.8.0-26.linux.x86_64.rpm"
+
 # RHEL Repositories to install packages not available in ISO
 RHEL_baseos: "https://liogw.lj.lab/deployment/rhel83-x64/BaseOS"
 RHEL_appstream: "https://liogw.lj.lab/deployment/rhel83-x64/appstream" 

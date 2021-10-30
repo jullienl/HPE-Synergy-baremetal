@@ -2,7 +2,7 @@
 
 # Performing automated ESXi 7.0 U2 Boot from SAN installation on Gen10 Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
 
-# Adding a DNS record for the bare metal server in the DNS server 
+# Adding a DNS record for the server that will be provisioned in the defined DNS server
 
 - name: Creating a DNS record for the bare metal ESXi server
   hosts: ESX
@@ -43,7 +43,7 @@
 
   tasks: 
 
-  # Preparing a staging folder for the ESX custom ISO
+  # Staging the ESX custom ISO on Ansible Controller 
 
     - name: Checking if HPE ESXi Custom ISO file exists on "{{lookup("pipe","hostname")}}"
       stat:
@@ -203,7 +203,7 @@
         mode: 0755
       delegate_to: localhost             
 
-# Creation of the ISO image
+# Creation of the new ESXi ISO image with unattended installation
 
     - name: Creating customized bootable ISO 
       shell: >
@@ -218,6 +218,8 @@
         -boot-info-table
         -eltorito-alt-boot
         -e efiboot.img
+        -boot-load-size 1
+        -no-emul-boot
         -o /opt/baremetal/{{ inventory_hostname }}.iso
         /opt/baremetal/{{ inventory_hostname }}/
       delegate_to: localhost
@@ -234,7 +236,7 @@
         mv /opt/baremetal/{{ inventory_hostname }}.iso /usr/share/nginx/html/isos/
       delegate_to: localhost
 
-# Starting the OS installation
+# Starting the OS unattended installation
 
     - name: Powering on and booting "{{ server_hardware_name }}" from created ISO using iLO Virtual Media 
       community.general.hpilo_boot:

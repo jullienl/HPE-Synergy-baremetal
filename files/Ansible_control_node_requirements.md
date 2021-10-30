@@ -93,3 +93,7 @@ cp /usr/local/lib/python3.6/site-packages/six.py /usr/lib/python3.6/site-package
 sed -i  "0,/location \/ {/s//location \/ {\n        autoindex on;/" /etc/nginx/nginx.conf
 systemctl restart nginx
 ```
+## unzip 
+unzip used to extract HPE Package to get product id information.
+```
+yum install unzip
