@@ -9,3 +9,7 @@ ansible_port: 5985
 
 # The following is necessary for Python 2.7.9+ when using default WinRM self-signed certificates:
 ansible_winrm_server_cert_validation: ignore
+
+# Domain Administrator credentials
+win_domain_admin_user: lj\Administrator
+win_domain_admin_password: xxxxxxxx

@@ -1,0 +1,76 @@
+---
+- name: Deleting provisioned Windows Server compute module(s)
+  hosts: Windows
+  collections:
+    - hpe.oneview
+  gather_facts: no
+  vars_files:
+    - vars/WIN_provisioning.yml
+    #- vars/vault.yml  # encrypted credentials yml
+  vars:
+    # HPE Synergy Composer configuration
+    - config: "{{ playbook_dir }}/oneview_config.json"
+
+    - ansible_python_interpreter: python3
+    - ansible_host_key_checking: false
+    - validate_certs: false
+
+  tasks: 
+   
+    - name : Getting server profile "{{ inventory_hostname }}" information
+      oneview_server_profile:
+         config: "{{ config }}"
+         state: "present"
+         data:
+            name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    #- debug: var=server_hardware
+
+    - name: Powering off server hardware "{{ server_hardware.name }}"
+      oneview_server_hardware:
+        config: "{{ config }}"
+        state: power_state_set
+        data:
+            name : "{{ server_hardware.name }}"
+            powerStateData:
+                powerState: "Off"
+                powerControl: "PressAndHold"
+      delegate_to: localhost
+
+    - name: Deleting server profile "{{ inventory_hostname }}"
+      oneview_server_profile:
+        config: "{{ config }}"
+        state: "absent"
+        data:
+          name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      register: result
+
+    - name: Result of the task to delete the server profile
+      debug:
+        msg: "{{ result.msg }}"
+
+    - name: Removing {{ inventory_hostname }} SSH key 
+      known_hosts:
+        name: '{{ inventory_hostname }}'
+        path: ~/.ssh/known_hosts
+        state: absent
+      delegate_to: localhost
+
+
+- name: Removing the DNS record for "{{ inventory_hostname }}"
+  hosts: Windows
+  gather_facts: no
+  vars_files:
+    - vars/WIN_provisioning.yml
+    - vars/windows_dns.yml
+  tasks:
+    - name: Removing "{{ host_management_ip }}"" from "{{ dns_server }}" 
+      community.windows.win_dns_record:
+        name: "{{ inventory_hostname }}"
+        type: "A"
+        zone: "{{ domain }}"
+        state: absent
+      delegate_to: "{{ dns_server }}" 
+

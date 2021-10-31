@@ -4,7 +4,7 @@
 ```
 mkdir ~/Projects
 cd ~/Projects
-git clone https://github.com/jullienl/HPE-Synergy-baremetal
+git clone https://github.com/jullienl/HPE-Synergy-baremetal.git
 ```
 
 ## openssh installation
