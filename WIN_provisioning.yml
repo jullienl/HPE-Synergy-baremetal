@@ -1,6 +1,6 @@
 ---
 
-# Performing automated Windows Server 2022 Boot from SAN installation on Gen10 Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
+# Performing automated Windows Server 2022 Boot from SAN installation on Gen10 Synergy Module(s) using an unattended file and a HPE OneView Server Profile Template
 
 - name: Performing an unattended Windows Server 2022 Boot from SAN installation on a Gen10 Synergy Module using a OneView Server Profile Template
   hosts: Windows
@@ -76,7 +76,7 @@
 
 # Creating $OEM$ resources to host the different scripts that we need to run at startup
 
-    - name: Creating $OEM$ on "{{lookup("pipe","hostname")}}" in /opt/baremetal/{{ inventory_hostname }}/sources to run scripts at startup
+    - name: Creating $OEM$ on "{{lookup("pipe","hostname")}}" in /opt/baremetal/{{ inventory_hostname }}/sources to execute scripts at startup
       file:
         path: "{{ item }}"
         state: directory
@@ -113,7 +113,7 @@
       delegate_to: localhost
       register: result
 
-    - name: Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]
+    - name: Capturing information for the customization of the unattend file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]
       set_fact:
         server_hardware_name: "{{ server_hardware.name }}"
         generation: "{{ server_hardware.generation }}"

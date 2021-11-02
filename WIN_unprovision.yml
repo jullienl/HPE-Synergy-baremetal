@@ -51,13 +51,6 @@
       debug:
         msg: "{{ result.msg }}"
 
-    - name: Removing {{ inventory_hostname }} SSH key 
-      known_hosts:
-        name: '{{ inventory_hostname }}'
-        path: ~/.ssh/known_hosts
-        state: absent
-      delegate_to: localhost
-
 
 - name: Removing the DNS record for "{{ inventory_hostname }}"
   hosts: Windows

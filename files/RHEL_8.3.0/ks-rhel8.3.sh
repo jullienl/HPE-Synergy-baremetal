@@ -19,16 +19,16 @@ reboot
 text
 
 # Keyboard layouts
-keyboard --xlayouts='us'
+keyboard --xlayouts={{keyboard}}
 
 # System language
-lang en_US.UTF-8
+lang {{language}}
 
 # Installation logging level
 logging --level=info
 
 # Root password - use 'opennssl passwd -6'
-rootpw --iscrypted $6$kpUk9Sq7Yp/uVzcl$f9/0xR2oC/5DierkhdzDqiYex47nehfHQwxYOklxcU5.5MAXB7VeiEP2rrVmCw4CH4LqLK0AuR3cmeX1tqTE30
+rootpw {{root_password}}
 
 # System authorization information
 authselect --enableshadow --passalgo=sha512
@@ -46,7 +46,7 @@ skipx
 services --disabled="kdump,rpcbind,sendmail,postfix,chronyd"
 
 # System timezone
-timezone Europe/Paris --isUtc
+timezone {{timezone}} --isUtc --ntpservers={{ntp_servers}}
 
 # Create additional repo during installation - REMOVED FROM HERE AS DO NOT OFFER THE NO GPGCHECK OPTION - MOVED TO %POST
 #repo --install --name="RHEL-8.3_baseos" --baseurl={{RHEL_baseos}} --noverifyssl
