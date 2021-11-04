@@ -320,13 +320,22 @@
 # Waiting for HPE drivers to be installed
 
     - name: Monitoring SUT status for 'reboot the system' message
-      shell: |
-        sut -status | grep -i 'User Action Needed'
-      register: sut_info
-      until: "sut_info.stdout is search('Reboot the system')"
+      oneview_server_hardware_facts:
+        config: "{{ config }}"
+        name: "{{ server_hardware.name }}"
       retries: 50
-      delay: 30    
-
+      delay: 30 
+      until:  server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
+      delegate_to: localhost
+    
+    # Better to use the server_hardwares.serverSettings data than parsing SUT status
+    # - name: Monitoring SUT status for 'reboot the system' message
+    #   shell: |
+    #     sut -status | grep -i 'User Action Needed'
+    #   register: sut_info
+    #   until: "sut_info.stdout is search('Reboot the system')"
+    #   retries: 50
+    #   delay: 30    
     #- debug: msg={{ sut_info.stdout }}
     
 # Rebooting host for the HPE drivers/firmware activation
