@@ -70,37 +70,39 @@ free -m
 
 # Select the first drive that is the closest to SIZE, the size of the boot disk defined in the Server Profile
 
-echo "Detecting boot drive for OS installation..."
-SIZE={{size}}
+SIZE={{boot_lun_size}}
 BOOTDRIVE=""
 MINDELTA=100
 
-for DEV in /sys/block/s*; do
-    if [[ -d $DEV && `cat $DEV/size` -ne 0  ]]; then
-        #echo $DEV
-        DISKSIZE=`cat $DEV/size`
-        GB=$(($DISKSIZE/2**21))
-        #echo "size $GB"
-        DELTA=$(( $GB - $SIZE ))
-        if [ "$DELTA" -lt 0 ]; then 
-            DELTA=$((-DELTA))
+# if SIZE exists then use boot from SAN volume for the OS installation
+if [ "$SIZE" != "undefined" ]; then 
+    echo "Detecting boot drive for OS installation..."
+    for DEV in /sys/block/s*; do
+        if [[ -d $DEV && `cat $DEV/size` -ne 0  ]]; then
+            #echo $DEV
+            DISKSIZE=`cat $DEV/size`
+            GB=$(($DISKSIZE/2**21))
+            #echo "size $GB"
+            DELTA=$(( $GB - $SIZE ))
+            if [ "$DELTA" -lt 0 ]; then 
+                DELTA=$((-DELTA))
+            fi
+                    
+            if [ $DELTA -lt $MINDELTA ]; then
+                MINDELTA=$DELTA
+                DRIVE=`echo $DEV | awk '{ print substr ($0, 12 ) }'`
+            fi 
+        echo "Diff is $DELTA with `echo $DEV | awk '{ print substr ($0, 12 ) }'`: $GB GB"
         fi
-                
-        if [ $DELTA -lt $MINDELTA ]; then
-            MINDELTA=$DELTA
-            DRIVE=`echo $DEV | awk '{ print substr ($0, 12 ) }'`
-        fi 
-    echo "Diff is $DELTA with `echo $DEV | awk '{ print substr ($0, 12 ) }'`: $GB GB"
-    fi
+    done
 
-done
 
-# Collecting multipath device name tied to the drive found
-BOOTDRIVE=`lsblk -nl -o NAME /dev/$DRIVE  | sed -n '2 p'`
+    # Collecting multipath device name tied to the drive found
+    BOOTDRIVE=`lsblk -nl -o NAME /dev/$DRIVE  | sed -n '2 p'`
 
-echo "BOOTDRIVE detected is $BOOTDRIVE"
+    echo "BOOTDRIVE detected is $BOOTDRIVE"
 
-cat << EOF >> /tmp/part-include
+    cat << EOF >> /tmp/part-include
     # Clear the Master Boot Record
     zerombr
     # Disk Partition clearing information
@@ -114,6 +116,26 @@ cat << EOF >> /tmp/part-include
     # Disk partitioning information
     autopart --type=lvm
 EOF
+else
+# if SIZE does not exist then use local disk for the OS installation
+    cat << EOF >> /tmp/part-include
+        # Choose the disks to be used
+        ignoredisk --only-use=sda
+        
+        # Clear the Master Boot Record
+        zerombr
+        
+        # Disk Partition clearing information
+        clearpart --all --initlabel 
+
+        # System bootloader configuration
+        bootloader --append="rhgb novga console=ttyS0,115200 console=tty0 panic=1" --location=mbr 
+
+        # Disk partitioning information
+        autopart --type=lvm
+EOF
+fi
+
 
 echo "=============================="
 echo "Kickstart pre install script completed at: `date`"

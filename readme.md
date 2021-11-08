@@ -15,8 +15,8 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 ## Pre-requisites
 
-- HPE Synergy frame configured and at least one unused compute module
-- OneView Server Profile template defined for each desired OS
+- HPE Synergy frame configured and at least one unused Synergy 480 Gen10 compute module
+- OneView Server Profile template defined for each desired OS with a logical local storage boot drive or a boot from SAN storage volume
 - Ansible controller node (see below for configuration) with a drive large enough to host the generated ISO files
 - Windows DNS server configured to be managed by Ansible (see the configuration below)
 
@@ -51,14 +51,16 @@ To learn more about **Setting up Windows host**, see https://docs.ansible.com/an
    - Use 6 network connections:
       * 2 for management 
       * 2 for FCoE 
-      * 2 for Production network set  
+      * 2 for Production using a network set  
 
-        >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for unused NICs (usually vmnic 4 and 5) to create Distibuted switch for VM traffic. RHEL and Windows playbooks create a team using the first two management NICs   
-         
-   - For Storage, the playbooks look for the boot LUN corresponding to what is defined in the Server Profile so you can use any SAN volume configuration: 
-      - One boot from SAN OS volume (a local storage logical volume is not supported at this time)
-      - Optional: other Shared/Private SAN volumes for vmfs datastore/cluster volumes can also be defined
-   - For RHEL and Windows provisioning, HPE drivers are installed at the end so it is required to set a firmware baseline with at least `Firmware only` installation method.
+        >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for the two NICs connected to the defined network set to create the Distibuted switch for VM traffic. RHEL and Windows playbooks only create a team using the first two management NICs.   
+
+   - For Storage, set either a boot from local storage (e.g. RAID 1 logical drive using the two internal drives) or a boot from SAN volume.
+      * With the boot from SAN option, RHEL and ESXi playbooks look for the boot LUN to install the OS so any additional shared/private SAN volumes 
+        for vmfs datastore/cluster volumes can also be defined.
+
+   - For RHEL and Windows provisioning, HPE drivers are installed at the end of the playbook so it is required to set a firmware baseline with at least `Firmware only` installation method.
+        >**Note**: For ESXi, there is no need to install HPE drivers because HPE ESXi images include all the drivers and management software required to run ESXi on HPE servers, therefore there is no need to define a firmware baseline.
 
 ## How to protect sensitive credentials
 
@@ -75,15 +77,12 @@ This playbook performs for each inventory host the automated installation of RHE
 - Mount the ISO and copy all files from the RHEL ISO image to a staging directory
 - Modify Legacy bios and UEFI bootloaders for kickstart installation from CDROM
 - Create a HPE OneView Server Profile from an existing Server Profile Template
-- Capture the information for the customization of the kickstart file:
-  - Server generation 
-  - MAC of first management NIC 
-  - LUN URI of the primary boot volume
-  - Size of the primary boot volume 
+  - Display Server hardware automaticaly selected by HPE OneView 
+- Capture the size of the primary boot volume (if any) for the customization of the kickstart file
 - Customize the kickstart file with among others:
   - Set IP parameters
   - Set root password
-  - Create a %pre script to detect the primary boot from SAN volume
+  - Create a %pre script to detect the primary boot from SAN volume (if any)
   - Create a %post to set RHEL repositories and hostname
   - Add Ansible Control node SSH public key to .ssh/authorized_keys
   - Set keyboard and language settings
@@ -114,15 +113,13 @@ This playbook performs for each inventory host the automated installation of VMw
 - Mount the ISO and copy all files from the ESXi HPE Custom ISO image to a staging directory
 - Modify Legacy bios and UEFI bootloaders for kickstart installation from CDROM
 - Create an HPE OneView Server Profile from an existing Server Profile Template
-- Capture the information for the customization of the kickstart file: 
-  - Server generation 
-  - MAC of first management NIC 
-  - LUN URI of the primary boot volume
-  - Size of the primary boot volume
+  - Display Server hardware automaticaly selected by HPE OneView 
+- Capture the size of the primary boot volume (if any) for the customization of the kickstart file
+- Capture MAC addresses of the production NICs attached to the defined network set for subsequent configuration of the Distributed vSwitch.
 - Customize the kickstart file with among others:
   - Set IP parameters
   - Set root password
-  - Create a %pre script to detect the primary boot from SAN volume
+  - Create a %pre script to detect the primary boot from SAN volume (if any)
 - Generate a temporary ISO file with the customized kickstart file 
 - Power on and boot the inventory host from created ISO using iLO virtual media
 - Wait until ESXi installation is complete
@@ -150,13 +147,11 @@ This playbook performs for each inventory host the automated installation of Win
 - Download the OS vendor ISO file from a web server
 - Mount the ISO and copy all files from the Windows Server ISO image to a staging directory
 - Create an HPE OneView Server Profile from an existing Server Profile Template
-- Capture the information for the customization of the startup scripts: 
-  - MAC of first and second management NICs 
-  - LUN URI of the primary boot volume
-  - Boot LUN size 
+  - Display Server hardware automaticaly selected by HPE OneView 
+- Capture MAC address of first two management NICs for the configuration of the network settings in configure_network.ps1 
 - Create $OEM$ resources to host the scripts that need to be executed at startup:
   - Import a PowerShell script from the Ansible repository to %OEM% to configure Windows for remote management with Ansible 
-  - Create a PowerShell script to be launched by SetupComplete.cmd at startup to:
+  - Create a PowerShell script configure_network.ps1 to be launched by SetupComplete.cmd at startup to:
     - Configure the NIC teaming with the first two NICs 
     - Configure the IP parameters
 - Customize the unattend file with among others:
@@ -214,342 +209,366 @@ The resources in this repository were tested with:
 ## Output sample of ESXi bare metal provisioning playbook 
 
 ```
-ansible-playbook -i hosts ESXi_autodeploy_using_autogenerated_ISO.yml 
+ansible-playbook -i hosts ESXi_provisioning.yml
 
-PLAY [Creating a DNS record for the bare metal ESXi server] **************************************************************************************************************************************
+PLAY [Creating a DNS record for the bare metal ESXi server] ***********************************************************************
 
-TASK [Adding "ESX-2-deploy" with "192.168.3.175" on "dc.lj.lab" in "lj.lab" DNS domain] **********************************************************************************************************
-ok: [ESX-2-deploy -> dc.lj.lab]
+TASK [Adding "ESX-1" with "192.168.3.171" on "dc.lj.lab" in "lj.lab" DNS domain] **************************************************
+changed: [ESX-1 -> dc.lj.lab]
 
-PLAY [Performing an automated ESXi 7.0 U2 Boot from SAN installation on a Gen10 Synergy Module using a kickstart and a OneView Server Profile Template] ******************************************
+PLAY [Performing an automated ESXi 7.0 U2 Boot from SAN installation on a Gen10 Synergy Module using a kickstart and a OneView Server Profile Template] ***
 
-TASK [Checking if HPE ESXi Custom ISO file exists on "ansible.lj.lab"] ***************************************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Checking if HPE ESXi Custom ISO file exists on "ansible.lj.lab"] ************************************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Creating the directory "/opt/esxiisosrc" to host the ISO file on "ansible.lj.lab"] *********************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Creating the directory "/opt/esxiisosrc" to host the ISO file on "ansible.lj.lab"] ******************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Downloading file "VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso" to "ansible.lj.lab" if not present] ****************************************************************
-skipping: [ESX-2-deploy]
+TASK [Downloading file "VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso" to "ansible.lj.lab" if not present] ***
+skipping: [ESX-1]
 
-TASK [Checking if HPE ESXi Custom ISO file extraction is necessary on "ansible.lj.lab"] **********************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Checking if HPE ESXi Custom ISO file extraction is necessary on "ansible.lj.lab"] *******************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Creating /mnt/ESX-2-deploy on "ansible.lj.lab" if it does not exist] ***********************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating /mnt/ESX-1 on "ansible.lj.lab" if it does not exist] ***************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating /opt/baremetal/ESX-2-deploy/ on "ansible.lj.lab" if it does not exist] ************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating /opt/baremetal/ESX-1/ on "ansible.lj.lab" if it does not exist] ****************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating /opt/baremetal/temp/ESX-2-deploy/ on "ansible.lj.lab" if it does not exist] *******************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating /opt/baremetal/temp/ESX-1/ on "ansible.lj.lab" if it does not exist] ***********************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating /opt/baremetal/temp/ESX-2-deploy/etc/vmware/weasel on "ansible.lj.lab" if it does not exist] **************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating /opt/baremetal/temp/ESX-1/etc/vmware/weasel on "ansible.lj.lab" if it does not exist] ******************************
+changed: [ESX-1 -> localhost]
 
-TASK [Mounting HPE ESXi Custom ISO and copying ISO files to /opt/baremetal/ESX-2-deploy/ on "ansible.lj.lab"] ************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Mounting HPE ESXi Custom ISO and copying ISO files to /opt/baremetal/ESX-1/ on "ansible.lj.lab"] ****************************
+changed: [ESX-1 -> localhost]
 
-TASK [Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM] ***********************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM] ********************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Modifying UEFI bootloader for kickstart installation from CDROM] ***************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Modifying UEFI bootloader for kickstart installation from CDROM] ************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating Server Profile "ESX-2-deploy" from Server Profile Template "ESXi7 BFS"] ***********************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating Server Profile "ESX-1" from Server Profile Template "ESXi7 BFS"] ***************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]] **********************************
-ok: [ESX-2-deploy]
+TASK [Capturing the boot information of the first fiber channel interface of the server profile] **********************************
+ok: [ESX-1]
 
-TASK [Showing the result of the Server Profile creation task] ************************************************************************************************************************************
-ok: [ESX-2-deploy] => {
+TASK [Capturing network set information from "Production_network_set" attached to the two production NICs] ************************
+ok: [ESX-1 -> localhost]
+
+TASK [Capturing the URI of network "Production_network_set" attached to the two production NICs] **********************************
+ok: [ESX-1]
+
+TASK [Capturing the server hardware name selected for Server Profile creation] ****************************************************
+ok: [ESX-1]
+
+TASK [Capturing MAC addresses of the production NICs attached to "Production_network_set" for subsequent configuration of the Distributed vSwitch.] ***
+ok: [ESX-1]
+
+TASK [Capturing LUN uri of the primary boot volume (if any) for the customization of the kickstart file] **************************
+ok: [ESX-1]
+
+TASK [Showing the result of the Server Profile creation task] *********************************************************************
+ok: [ESX-1] => {
     "msg": "Hardware selected: Frame4, bay 4 - Result: Server Profile created."
 }
 
-TASK [Collecting volumes information] ************************************************************************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Capturing boot volume information (if any)] *********************************************************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Capturing boot LUN size defined in the Server Profile to ensure that ESXi will be installed on this disk using the kickstart file] *********************************************************
-ok: [ESX-2-deploy]
+TASK [Capturing boot LUN size defined in the Server Profile to ensure that OS will be installed on this disk using the kickstart file] ***
+ok: [ESX-1]
 
-TASK [Creating kickstart file with %pre script to detect the "20GB" Boot From SAN volume] ********************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Setting boot LUN size as 'undefined' if booting from local logical drive] ***************************************************
+skipping: [ESX-1]
 
-TASK [Preparing ks.cfg kickstart file to make the new ISO] ***************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating kickstart file with %pre script to detect the "20GB" Boot From SAN volume if it exists] ****************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating the ks.tgz kickstart file to make the new ISO] ************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Preparing ks.cfg kickstart file to make the new ISO] ************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Copying new ks.tgz to /opt/baremetal/ESX-2-deploy/] ****************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating the ks.tgz kickstart file to make the new ISO] *********************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating customized bootable ISO] **********************************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Copying new ks.tgz to /opt/baremetal/ESX-1/] ********************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Creating /usr/share/nginx/html/isos/ on "ansible.lj.lab" if it does not exist] *************************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Creating customized bootable ISO] *******************************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Moving created ISO to the nginx default html folder of "ansible.lj.lab"] *******************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Creating /usr/share/nginx/html/isos/ on "ansible.lj.lab" if it does not exist] **********************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Powering on and booting "Frame4, bay 4" from created ISO using iLO Virtual Media] **********************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Moving created ISO to the nginx default html folder of "ansible.lj.lab"] ****************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Waiting for ESX installation to complete - waiting for "192.168.3.175" to respond...] ******************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Powering on and booting "Frame4, bay 4" from created ISO using iLO Virtual Media] *******************************************
+changed: [ESX-1 -> localhost]
 
-TASK [debug] *************************************************************************************************************************************************************************************
-ok: [ESX-2-deploy] => {
-    "msg": "ESX-2-deploy installation took 14 minutes"
+TASK [Waiting for ESX installation to complete - waiting for "192.168.3.171" to respond...] ***************************************
+ok: [ESX-1 -> localhost]
+
+TASK [debug] **********************************************************************************************************************
+ok: [ESX-1] => {
+    "msg": "ESX-1 installation took 14 minutes"
 }
 
-TASK [Wait a little longer so that the ESX host is truly ready to be added to the vcenter] *******************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Wait a little longer so that the ESX host is truly ready to be added to the vcenter] ****************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Deleting all related files from staging location and web server] ***************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Deleting all related files from staging location and web server] ************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Adding ESXi host "esx-2-deploy.lj.lab" to vCenter "vcenter.lj.lab"] ************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Adding ESXi host "esx-1.lj.lab" to vCenter "vcenter.lj.lab"] ****************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Assigning ESXi license to Host] ************************************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Assigning ESXi license to Host] *********************************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Adding vmnic1 to standard switch vSwitch0] *************************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Adding vmnic1 to standard switch vSwitch0] **********************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Adding vMotion Portgroup to standard switch vSwitch0] **************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Adding vMotion Portgroup to standard switch vSwitch0] ***********************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Gathering facts about vmnics] **************************************************************************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Gathering facts about vmnics] ***********************************************************************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Capturing available vmnics for the distributed switch creation] ****************************************************************************************************************************
-ok: [ESX-2-deploy]
+TASK [Capturing Production vmnics information for the distributed switch creation] ************************************************
+ok: [ESX-1]
 
-TASK [Connecting host to "DSwitch-VC100G" distributed switch] ************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Connecting host to "DSwitch-VC100G" distributed switch] *********************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Adding vmkernel mk1 port to "DSwitch-VC100G" distributed Switch] ***************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Adding vmkernel mk1 port to "DSwitch-VC100G" distributed Switch] ************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Changing Advanced Settings with Core Dump Warning Disable] *********************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Changing Advanced Settings with Core Dump Warning Disable] ******************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Setting the Power Management Policy to high-performance] ***********************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Setting the Power Management Policy to high-performance] ********************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Configuring NTP servers] *******************************************************************************************************************************************************************
+TASK [Configuring NTP servers] ****************************************************************************************************
+changed: [ESX-1 -> localhost]
+
+TASK [Starting NTP Service and set to start at boot.] *****************************************************************************
+changed: [ESX-1 -> localhost]
+
+TASK [Starting ESXi Shell Service and setting to enable at boot . . .] ************************************************************
 [WARNING]: Found internal 'results' key in module return, renamed to 'ansible_module_results'.
-changed: [ESX-2-deploy -> localhost]
+changed: [ESX-1 -> localhost]
 
-TASK [Starting NTP Service and set to start at boot.] ********************************************************************************************************************************************
-[WARNING]: Found internal 'results' key in module return, renamed to 'ansible_module_results'.
-[WARNING]: The value True (type bool) in a string field was converted to 'True' (type string). If this does not look like what you expect, quote the entire value to ensure it does not change.
-changed: [ESX-2-deploy -> localhost]
+TASK [Starting SSH Service and setting to enable at boot.] ************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Starting ESXi Shell Service and setting to enable at boot . . .] ***************************************************************************************************************************
-[WARNING]: Found internal 'results' key in module return, renamed to 'ansible_module_results'.
-changed: [ESX-2-deploy -> localhost]
-
-TASK [Starting SSH Service and setting to enable at boot.] ***************************************************************************************************************************************
-[WARNING]: Found internal 'results' key in module return, renamed to 'ansible_module_results'.
-changed: [ESX-2-deploy -> localhost]
-
-TASK [Displaying install completed message] ******************************************************************************************************************************************************
-ok: [ESX-2-deploy] => {
+TASK [Displaying install completed message] ***************************************************************************************
+ok: [ESX-1] => {
     "msg": [
-        "ESX-2-deploy.lj.lab Installation completed !",
+        "ESX-1.lj.lab Installation completed !",
         "ESXi is configured and running. It has been added to the vCenter cluster 'Synergy Frame4'."
     ]
 }
 
-PLAY RECAP ***************************************************************************************************************************************************************************************
-ESX-2-deploy               : ok=43   changed=28   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0  
+PLAY RECAP ************************************************************************************************************************
+ESX-1                      : ok=48   changed=29   unreachable=0    failed=0    skipped=2    rescued=0    ignored=0
+
 ```
 
 
 ## Output sample of ESXi bare metal unprovisioning playbook 
 
 ```
-ansible-playbook -i hosts ESXi_unprovision.yml 
+ansible-playbook -i hosts ESXi_unprovision.yml
 
-PLAY [Deleting a provisioned ESXi compute module] ************************************************************************************************************************************************
+PLAY [Deleting a provisioned ESXi compute module] *********************************************************************************
 
-TASK [Taking "esx-2-deploy.lj.lab" to maintenance mode] ******************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Taking "esx-1.lj.lab" to maintenance mode] **********************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Removing vmkernel mk1 port from "DSwitch-VC100G" distributed Switch] ***********************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Removing vmkernel mk1 port from "DSwitch-VC100G" distributed Switch] ********************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Gathering facts about vmnics] **************************************************************************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Gathering facts about vmnics] ***********************************************************************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Capturing available vmnics for the distributed switch creation] ****************************************************************************************************************************
-ok: [ESX-2-deploy]
+TASK [Capturing available vmnics for the distributed switch creation] *************************************************************
+ok: [ESX-1]
 
-TASK [Removing host from "DSwitch-VC100G" distributed Switch] ************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Removing host from "DSwitch-VC100G" distributed Switch] *********************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Removing ESXi host "esx-2-deploy.lj.lab" from vCenter "vcenter.lj.lab"] ********************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Removing ESXi host "esx-1.lj.lab" from vCenter "vcenter.lj.lab"] ************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Getting server profile "ESX-2-deploy" information] *****************************************************************************************************************************************
-ok: [ESX-2-deploy -> localhost]
+TASK [Getting server profile "ESX-1" information] *********************************************************************************
+ok: [ESX-1 -> localhost]
 
-TASK [Powering off server hardware "Frame4, bay 4"] **********************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Powering off server hardware "Frame4, bay 4"] *******************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Deleting server profile "ESX-2-deploy"] ****************************************************************************************************************************************************
-changed: [ESX-2-deploy -> localhost]
+TASK [Deleting server profile "ESX-1"] ********************************************************************************************
+changed: [ESX-1 -> localhost]
 
-TASK [Result of the task to delete the server profile] *******************************************************************************************************************************************
-ok: [ESX-2-deploy] => {
+TASK [Result of the task to delete the server profile] ****************************************************************************
+ok: [ESX-1] => {
     "msg": "Deleted profile"
 }
 
-PLAY [Removing the DNS record for "{{ inventory_hostname }}"] ************************************************************************************************************************************
+PLAY [Removing the DNS record for "{{ inventory_hostname }}"] *********************************************************************
 
-TASK [Removing "192.168.3.172"" from "dc.lj.lab"] ************************************************************************************************************************************************
-ok: [RHEL-deploy -> dc.lj.lab]
+TASK [Removing "192.168.3.171"" from "dc.lj.lab"] *********************************************************************************
+changed: [ESX-1 -> dc.lj.lab]
 
-PLAY RECAP ***************************************************************************************************************************************************************************************
-ESX-2-deploy               : ok=10   changed=6    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
-RHEL-deploy                : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+PLAY RECAP ************************************************************************************************************************
+ESX-1                      : ok=11   changed=7    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
 ```
 
 
 ## Output sample of RHEL bare metal provisioning playbook 
 
 ```
-ansible-playbook -i hosts RHEL_autodeploy_using_autogenerated_ISO.yml 
+ansible-playbook -i hosts RHEL_provisioning.yml 
 
-PLAY [Creating a DNS record for the bare metal RHEL server] **************************************************************************************************************************************
+PLAY [Creating a DNS record for the bare metal RHEL server] ************************************************************************************************************************************************************
 
-TASK [Adding "RHEL-deploy" with "192.168.3.172" on "dc.lj.lab" in "lj.lab" DNS domain] ***********************************************************************************************************
-changed: [RHEL-deploy -> dc.lj.lab]
+TASK [Adding "RHEL-1" with "192.168.3.173" on "dc.lj.lab" in "lj.lab" DNS domain] **************************************************************************************************************************************
+ok: [RHEL-1 -> dc.lj.lab]
 
-PLAY [Performing an automated RHEL 8.3 Boot from SAN installation on a Gen10 Synergy Module using a kickstart and a OneView Server Profile Template] *********************************************
+PLAY [Performing an automated RHEL 8.3 Boot from SAN installation on a Gen10 Synergy Module using a kickstart and a OneView Server Profile Template] *******************************************************************
 
-TASK [Checking if RHEL ISO file exists on "ansible.lj.lab"] **************************************************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Checking if RHEL ISO file exists on "ansible.lj.lab"] ************************************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Creating the directory "/opt/rhelisosrc" to host the ISO file on "ansible.lj.lab"] *********************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Creating the directory "/opt/rhelisosrc" to host the ISO file on "ansible.lj.lab"] *******************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Downloading file "RHEL-8.3-minimum.iso" to "ansible.lj.lab" if not present] ****************************************************************************************************************
-skipping: [RHEL-deploy]
+TASK [Downloading file "RHEL-8.3-minimum.iso" to "ansible.lj.lab" if not present] **************************************************************************************************************************************
+skipping: [RHEL-1]
 
-TASK [Collecting ISO label (can be required for some booltloader modifications)] *****************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Collecting ISO label (can be required for some booltloader modifications)] ***************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [set_fact] **********************************************************************************************************************************************************************************
-ok: [RHEL-deploy]
+TASK [set_fact] ********************************************************************************************************************************************************************************************************
+ok: [RHEL-1]
 
-TASK [Checking if RHEL ISO file extraction is necessary on "RHEL-deploy"] ************************************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Checking if RHEL ISO file extraction is necessary on "RHEL-1"] ***************************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Creating /mnt/RHEL-deploy on "ansible.lj.lab" if it does not exist] ************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Creating /mnt/RHEL-1 on "ansible.lj.lab" if it does not exist] ***************************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Creating /opt/baremetal/RHEL-deploy/ on "ansible.lj.lab" if it does not exist] *************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Creating /opt/baremetal/RHEL-1/ on "ansible.lj.lab" if it does not exist] ****************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Mounting RHEL ISO and copying ISO files to /opt/baremetal/RHEL-deploy/ on "ansible.lj.lab"] ************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Mounting RHEL ISO and copying ISO files to /opt/baremetal/RHEL-1/ on "ansible.lj.lab"] ***************************************************************************************************************************
+skipping: [RHEL-1]
 
-TASK [Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM] ***********************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM] *********************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Modifying UEFI bootloader for kickstart installation from CDROM] ***************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Modifying UEFI bootloader for kickstart installation from CDROM] *************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Creating Server Profile "RHEL-deploy" from Server Profile Template "RHEL BFS"] *************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Creating Server Profile "RHEL-1" from Server Profile Template "RHEL BFS"] ****************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]] **********************************
-ok: [RHEL-deploy]
+TASK [Capturing the boot information of the first fiber channel interface of the server profile] ***********************************************************************************************************************
+ok: [RHEL-1]
 
-TASK [Showing the result of the Server Profile creation task] ************************************************************************************************************************************
-ok: [RHEL-deploy] => {
-    "msg": "Hardware selected: Frame4, bay 4 - Result: Server Profile created."
+TASK [Capturing the server hardware name selected for Server Profile creation] *****************************************************************************************************************************************
+ok: [RHEL-1]
+
+TASK [Capturing LUN uri of the primary boot volume (if any) for the customization of the kickstart file] ***************************************************************************************************************
+ok: [RHEL-1]
+
+TASK [Showing the result of the Server Profile creation task] **********************************************************************************************************************************************************
+ok: [RHEL-1] => {
+    "msg": "Hardware selected: Frame4, bay 3 - Result: Server Profile created."
 }
 
-TASK [Collecting volumes information] ************************************************************************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Capturing boot volume information (if any)] **********************************************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Capturing boot LUN size defined in the Server Profile to ensure that OS will be installed on this disk using the kickstart file] ***********************************************************
-ok: [RHEL-deploy]
+TASK [Capturing boot LUN size defined in the Server Profile to ensure that OS will be installed on this disk using the kickstart file] *********************************************************************************
+ok: [RHEL-1]
 
-TASK [Creating kickstart file with %pre script to detect the "50GB" Boot From SAN volume] ********************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Setting boot LUN size as 'undefined' if booting from local logical drive] ****************************************************************************************************************************************
+skipping: [RHEL-1]
 
-TASK [Creating customized bootable ISO] **********************************************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Creating kickstart file with %pre script to detect the "50GB" Boot From SAN volume if it exists] *****************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Implanting MD5 checksum into the ISO to make it bootable] **********************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Creating customized bootable ISO] ********************************************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Creating /usr/share/nginx/html/isos/ on "ansible.lj.lab" if it does not exist] *************************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Implanting MD5 checksum into the ISO to make it bootable] ********************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Moving created ISO to the nginx default html folder of "ansible.lj.lab"] *******************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Creating /usr/share/nginx/html/isos/ on "ansible.lj.lab" if it does not exist] ***********************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Powering on and booting "Frame4, bay 4" from created ISO using iLO Virtual Media] **********************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Moving created ISO to the nginx default html folder of "ansible.lj.lab"] *****************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Waiting for RHEL installation to complete - Waiting for "192.168.3.172" to respond...] *****************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Powering on and booting "Frame4, bay 3" from created ISO using iLO Virtual Media] ********************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [debug] *************************************************************************************************************************************************************************************
-ok: [RHEL-deploy] => {
-    "msg": "RHEL-deploy installation took 13 minutes"
+TASK [Waiting for RHEL installation to complete - Waiting for "192.168.3.173" to respond...] ***************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
+
+TASK [debug] ***********************************************************************************************************************************************************************************************************
+ok: [RHEL-1] => {
+    "msg": "RHEL-1 installation took 14 minutes"
 }
 
-TASK [Deleting all temporary files in the stagging location on "ansible.lj.lab"] *****************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Deleting all temporary files in the stagging location on "ansible.lj.lab"] ***************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Deleting created ISO file in the web server directory on "ansible.lj.lab"] *****************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Deleting created ISO file in the web server directory on "ansible.lj.lab"] ***************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Unmounting original ISO file on "ansible.lj.lab"] ******************************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Unmounting original ISO file on "ansible.lj.lab"] ****************************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Copying HPE iSUT rpm file to RHEL-deploy] **************************************************************************************************************************************************
-changed: [RHEL-deploy]
+TASK [Copying HPE iSUT rpm file to RHEL-1] *****************************************************************************************************************************************************************************
+changed: [RHEL-1]
 
-TASK [Copying HPE AMS rpm file to RHEL-deploy] ***************************************************************************************************************************************************
-changed: [RHEL-deploy]
+TASK [Copying HPE AMS rpm file to RHEL-1] ******************************************************************************************************************************************************************************
+changed: [RHEL-1]
 
-TASK [Installing iSUT] ***************************************************************************************************************************************************************************
-changed: [RHEL-deploy]
+TASK [Installing iSUT] *************************************************************************************************************************************************************************************************
+changed: [RHEL-1]
 
-TASK [Installing AMS] ****************************************************************************************************************************************************************************
-changed: [RHEL-deploy]
+TASK [Installing AMS] **************************************************************************************************************************************************************************************************
+changed: [RHEL-1]
 
-TASK [Waiting for iSUT installation to complete] *************************************************************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Waiting for iSUT installation to complete] ***********************************************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Configuring iSUT mode to allow OS driver updates via HPE OneView Server Profile] ***********************************************************************************************************
-changed: [RHEL-deploy]
+TASK [Configuring iSUT mode to allow OS driver updates via HPE OneView Server Profile] *********************************************************************************************************************************
+changed: [RHEL-1]
 
-TASK [debug] *************************************************************************************************************************************************************************************
-ok: [RHEL-deploy] => {
+TASK [debug] ***********************************************************************************************************************************************************************************************************
+ok: [RHEL-1] => {
     "msg": "Set Mode: autodeploy\nService will be registered and started\nSUT Service started successfully\nRegistration successful"
 }
 
-TASK [Updating Server Profile to enable Firmware and OS Drivers using SUT] ***********************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Updating Server Profile to enable Firmware and OS Drivers using SUT] *********************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [debug] *************************************************************************************************************************************************************************************
-ok: [RHEL-deploy] => {
+TASK [debug] ***********************************************************************************************************************************************************************************************************
+ok: [RHEL-1] => {
     "msg": "Server profile updated"
 }
 
-TASK [Monitoring SUT status for 'reboot the system' message] *************************************************************************************************************************************
+TASK [Monitoring SUT status for 'reboot the system' message] ***********************************************************************************************************************************************************
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (50 retries left).
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (49 retries left).
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (48 retries left).
@@ -559,87 +578,90 @@ FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (45 ret
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (44 retries left).
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (43 retries left).
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (42 retries left).
-changed: [RHEL-deploy]
+FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (41 retries left).
+FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (40 retries left).
+FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (39 retries left).
+FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (38 retries left).
+FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (37 retries left).
+ok: [RHEL-1 -> localhost]
 
-TASK [debug] *************************************************************************************************************************************************************************************
-ok: [RHEL-deploy] => {
-    "msg": "Reboot the system or execute -activate command to complete the system reboot."
-}
+TASK [Rebooting host for the HPE drivers/firmware activation and waiting for it to restart] ****************************************************************************************************************************
+changed: [RHEL-1]
 
-TASK [Rebooting host for the HPE drivers/firmware activation and waiting for it to restart] ******************************************************************************************************
-changed: [RHEL-deploy]
-
-TASK [Displaying install completed message] ******************************************************************************************************************************************************
-ok: [RHEL-deploy] => {
+TASK [Displaying install completed message] ****************************************************************************************************************************************************************************
+ok: [RHEL-1] => {
     "msg": [
-        "RHEL-deploy.lj.lab Installation completed !",
+        "RHEL-1.lj.lab Installation completed !",
         "OS is configured and running with HPE OS drivers."
     ]
 }
 
-PLAY RECAP ***************************************************************************************************************************************************************************************
-RHEL-deploy                : ok=40   changed=24   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+PLAY RECAP *************************************************************************************************************************************************************************************************************
+RHEL-1                     : ok=40   changed=18   unreachable=0    failed=0    skipped=3    rescued=0    ignored=0   
+
 ```
 
 ## Output sample of RHEL bare metal unprovisioning playbook 
 ```
 ansible-playbook -i hosts RHEL_unprovision.yml 
 
-PLAY [Deleting provisioned RHEL compute module(s)] ***********************************************************************************************************************************************
+PLAY [Deleting provisioned RHEL compute module(s)] *********************************************************************************************************************************************************************
 
-TASK [Getting server profile "RHEL-deploy" information] ******************************************************************************************************************************************
-ok: [RHEL-deploy -> localhost]
+TASK [Getting server profile "RHEL-1" information] *********************************************************************************************************************************************************************
+ok: [RHEL-1 -> localhost]
 
-TASK [Powering off server hardware "Frame4, bay 4"] **********************************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Powering off server hardware "Frame4, bay 3"] ********************************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Deleting server profile "RHEL-deploy"] *****************************************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Deleting server profile "RHEL-1"] ********************************************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-TASK [Result of the task to delete the server profile] *******************************************************************************************************************************************
-ok: [RHEL-deploy] => {
+TASK [Result of the task to delete the server profile] *****************************************************************************************************************************************************************
+ok: [RHEL-1] => {
     "msg": "Deleted profile"
 }
 
-TASK [Removing RHEL-deploy SSH key] **************************************************************************************************************************************************************
-changed: [RHEL-deploy -> localhost]
+TASK [Removing RHEL-1 SSH key] *****************************************************************************************************************************************************************************************
+changed: [RHEL-1 -> localhost]
 
-PLAY [Removing the DNS record for "{{ inventory_hostname }}"] ************************************************************************************************************************************
+PLAY [Removing the DNS record for "{{ inventory_hostname }}"] **********************************************************************************************************************************************************
 
-TASK [Removing "192.168.3.172"" from "dc.lj.lab"] ************************************************************************************************************************************************
-changed: [RHEL-deploy -> dc.lj.lab]
+TASK [Removing "192.168.3.173"" from "dc.lj.lab"] **********************************************************************************************************************************************************************
+changed: [RHEL-1 -> dc.lj.lab]
 
-PLAY RECAP ***************************************************************************************************************************************************************************************
-RHEL-deploy                : ok=6    changed=4    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+PLAY RECAP *************************************************************************************************************************************************************************************************************
+RHEL-1                     : ok=6    changed=4    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
 ```
+
 ## Output sample of Windows Server bare metal provisioning playbook
 ```
-ansible-playbook -i hosts WIN_autodeploy_using_autogenerated_ISO.yml 
+ansible-playbook -i hosts WIN_provisioning.yml
 
-PLAY [Performing an unattended Windows Server 2022 Boot from SAN installation on a Gen10 Synergy Module using a OneView Server Profile Template] ********************************************************
+PLAY [Performing an unattended Windows Server 2022 Boot from SAN installation on a Gen10 Synergy Module using a OneView Server Profile Template] ***
 
-TASK [Checking if Windows Server ISO file exists on "ansible.lj.lab"] ***********************************************************************************************************************************
+TASK [Checking if Windows Server ISO file exists on "ansible.lj.lab"] *************************************************************
 ok: [WIN-1 -> localhost]
 
-TASK [Creating the directory "/opt/winisosrc" to host the ISO file on "ansible.lj.lab"] *****************************************************************************************************************
+TASK [Creating the directory "/opt/winisosrc" to host the ISO file on "ansible.lj.lab"] *******************************************
 ok: [WIN-1 -> localhost]
 
-TASK [Downloading file "en-us_windows_server_version_2022_updated_october_2021_x64_dvd_b6e25591.iso" to "ansible.lj.lab" if not present] ****************************************************************
+TASK [Downloading file "en-us_windows_server_version_2022_updated_october_2021_x64_dvd_b6e25591.iso" to "ansible.lj.lab" if not present] ***
 skipping: [WIN-1]
 
-TASK [Checking if Windows Server ISO file extraction is necessary on "ansible.lj.lab"] ******************************************************************************************************************
+TASK [Checking if Windows Server ISO file extraction is necessary on "ansible.lj.lab"] ********************************************
 ok: [WIN-1 -> localhost]
 
-TASK [Creating /mnt/WIN-1 on "ansible.lj.lab" if it does not exist] *************************************************************************************************************************************
+TASK [Creating /mnt/WIN-1 on "ansible.lj.lab" if it does not exist] ***************************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Creating /opt/baremetal/WIN-1/ on "ansible.lj.lab" if it does not exist] **************************************************************************************************************************
+TASK [Creating /opt/baremetal/WIN-1/ on "ansible.lj.lab" if it does not exist] ****************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Mounting Windows Server ISO and copying ISO files to /opt/baremetal/WIN-1/ on "ansible.lj.lab"] ***************************************************************************************************
+TASK [Mounting Windows Server ISO and copying ISO files to /opt/baremetal/WIN-1/ on "ansible.lj.lab"] *****************************
 changed: [WIN-1 -> localhost]
 
-TASK [Creating $OEM$ on "ansible.lj.lab" in /opt/baremetal/WIN-1/sources to run scripts at startup] *****************************************************************************************************
+TASK [Creating $OEM$ on "ansible.lj.lab" in /opt/baremetal/WIN-1/sources to execute scripts at startup] ***************************
 changed: [WIN-1 -> localhost] => (item=/opt/baremetal/WIN-1/sources/$OEM$)
 changed: [WIN-1 -> localhost] => (item=/opt/baremetal/WIN-1/sources/$OEM$/$1)
 changed: [WIN-1 -> localhost] => (item=/opt/baremetal/WIN-1/sources/$OEM$/$1/Temp)
@@ -647,109 +669,106 @@ changed: [WIN-1 -> localhost] => (item=/opt/baremetal/WIN-1/sources/$OEM$/$$)
 changed: [WIN-1 -> localhost] => (item=/opt/baremetal/WIN-1/sources/$OEM$/$$/Setup)
 changed: [WIN-1 -> localhost] => (item=/opt/baremetal/WIN-1/sources/$OEM$/$$/Setup/Scripts)
 
-TASK [Download POSH script from GitHub to configure Windows for remote management with Ansible] *********************************************************************************************************
+TASK [Download POSH script from GitHub to configure Windows for remote management with Ansible] ***********************************
 changed: [WIN-1 -> localhost]
 
-TASK [Creating Server Profile "WIN-1" from Server Profile Template "Windows BFS"] ***********************************************************************************************************************
+TASK [Creating Server Profile "WIN-1" from Server Profile Template "Windows BFS"] *************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]] *****************************************
+TASK [Capturing the server hardware name selected for Server Profile creation] ****************************************************
 ok: [WIN-1]
 
-TASK [Showing the result of the Server Profile creation task] *******************************************************************************************************************************************
-ok: [WIN-1] => {
-    "msg": "Hardware selected: Frame4, bay 3 - Result: Server Profile created."
-}
-
-TASK [Collecting volumes information] *******************************************************************************************************************************************************************
-ok: [WIN-1 -> localhost]
-
-TASK [Capturing boot LUN size defined in the Server Profile to ensure that Windows Server will be installed on this disk using the kickstart file] ****************************************************************
+TASK [Capturing MAC of first two management NICs for the configuration of the network settings in configure_network.ps1] **********
 ok: [WIN-1]
 
-TASK [Creating configure_network.ps1 that will be launched by SetupComplete.cmd (creation of a team using the first two NICs and configuration of IP parameters)] ***************************************
-changed: [WIN-1 -> localhost]
-
-TASK [Creating SetupComplete.cmd for the network settings] **********************************************************************************************************************************************
-changed: [WIN-1 -> localhost]
-
-TASK [Updating autounattend.xml file] *******************************************************************************************************************************************************************
-changed: [WIN-1 -> localhost]
-
-TASK [Creating customized bootable ISO] *****************************************************************************************************************************************************************
-changed: [WIN-1 -> localhost]
-
-TASK [Creating /usr/share/nginx/html/isos/ on "ansible.lj.lab" if it does not exist] ********************************************************************************************************************
-ok: [WIN-1 -> localhost]
-
-TASK [Moving created ISO to the nginx default html folder of "ansible.lj.lab"] **************************************************************************************************************************
-changed: [WIN-1 -> localhost]
-
-TASK [Powering on and booting "Frame4, bay 3" from created ISO using iLO Virtual Media] *****************************************************************************************************************
-changed: [WIN-1 -> localhost]
-
-TASK [Waiting for Windows Server installation to complete - Waiting for "192.168.3.175" to respond...] **************************************************************************************************
-ok: [WIN-1 -> localhost]
-
-TASK [debug] ********************************************************************************************************************************************************************************************
+TASK [Showing the result of the Server Profile creation task] *********************************************************************
 ok: [WIN-1] => {
-    "msg": "WIN-1 installation took 21 minutes"
+    "msg": "Hardware selected: Frame4, bay 5 - Result: Server Profile created."
 }
 
-TASK [Deleting all temporary files in the stagging location on "ansible.lj.lab"] ************************************************************************************************************************
+TASK [Creating configure_network.ps1 that will be launched by SetupComplete.cmd (creation of a team using the first two NICs and configuration of IP parameters)] ***
 changed: [WIN-1 -> localhost]
 
-TASK [Deleting created ISO file in the web server directory on "ansible.lj.lab"] ************************************************************************************************************************
+TASK [Creating SetupComplete.cmd for the network settings] ************************************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Unmounting original ISO file on "ansible.lj.lab"] *************************************************************************************************************************************************
+TASK [Updating autounattend.xml file] *********************************************************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Collecting product_id found in install.xml file of the HPE iSUT package] **************************************************************************************************************************
+TASK [Creating customized bootable ISO] *******************************************************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Collecting product_id found in install.xml file of the HPE AMS package] ***************************************************************************************************************************
+TASK [Creating /usr/share/nginx/html/isos/ on "ansible.lj.lab" if it does not exist] **********************************************
+ok: [WIN-1 -> localhost]
+
+TASK [Moving created ISO to the nginx default html folder of "ansible.lj.lab"] ****************************************************
 changed: [WIN-1 -> localhost]
 
-PLAY [Creating a DNS record for the bare metal Windows Server] ******************************************************************************************************************************************
+TASK [Powering on and booting "Frame4, bay 5" from created ISO using iLO Virtual Media] *******************************************
+changed: [WIN-1 -> localhost]
 
-TASK [Adding "WIN-1" with "192.168.3.175" on "dc.lj.lab" in "lj.lab" DNS domain] ************************************************************************************************************************
+TASK [Waiting for Windows Server installation to complete - Waiting for "192.168.3.175" to respond...] ****************************
+ok: [WIN-1 -> localhost]
+
+TASK [debug] **********************************************************************************************************************
+ok: [WIN-1] => {
+    "msg": "WIN-1 installation took 22 minutes"
+}
+
+TASK [Deleting all temporary files in the stagging location on "ansible.lj.lab"] **************************************************
+changed: [WIN-1 -> localhost]
+
+TASK [Deleting created ISO file in the web server directory on "ansible.lj.lab"] **************************************************
+changed: [WIN-1 -> localhost]
+
+TASK [Unmounting original ISO file on "ansible.lj.lab"] ***************************************************************************
+changed: [WIN-1 -> localhost]
+
+TASK [Collecting product_id found in install.xml file of the HPE iSUT package] ****************************************************
+changed: [WIN-1 -> localhost]
+
+TASK [Collecting product_id found in install.xml file of the HPE AMS package] *****************************************************
+changed: [WIN-1 -> localhost]
+
+PLAY [Creating a DNS record for the bare metal Windows Server] ********************************************************************
+
+TASK [Adding "WIN-1" with "192.168.3.175" on "dc.lj.lab" in "lj.lab" DNS domain] **************************************************
 changed: [WIN-1 -> dc.lj.lab]
 
-PLAY [Installing HPE iSUT and HPE AMS on the server for online installation of HPE drivers for Windows Server] ******************************************************************************************
+PLAY [Installing HPE iSUT and HPE AMS on the server for online installation of HPE drivers for Windows Server] ********************
 
-TASK [Copying HPE iSUT package file to WIN-1] ***********************************************************************************************************************************************************
+TASK [Copying HPE iSUT package file to WIN-1] *************************************************************************************
 changed: [WIN-1]
 
-TASK [Copying HPE AMS package file to WIN-1] ************************************************************************************************************************************************************
+TASK [Copying HPE AMS package file to WIN-1] **************************************************************************************
 changed: [WIN-1]
 
-TASK [Installing Integrated Smart Update Tools] *********************************************************************************************************************************************************
+TASK [Installing Integrated Smart Update Tools] ***********************************************************************************
 ok: [WIN-1]
 
-TASK [Installing HPE Agentless Management Service] ******************************************************************************************************************************************************
+TASK [Installing HPE Agentless Management Service] ********************************************************************************
 ok: [WIN-1]
 
-TASK [Configuring iSUT mode to allow OS driver updates via HPE OneView Server Profile] ******************************************************************************************************************
+TASK [Configuring iSUT mode to allow OS driver updates via HPE OneView Server Profile] ********************************************
 changed: [WIN-1]
 
-TASK [debug] ********************************************************************************************************************************************************************************************
+TASK [debug] **********************************************************************************************************************
 ok: [WIN-1] => {
     "msg": "Set Mode: autodeploy\r\nService will be registered and started\r\nSUT Service started successfully\r\nRegistration successful\r\n"
 }
 
-TASK [Updating Server Profile to enable Firmware and OS Drivers using SUT] ******************************************************************************************************************************
+TASK [Updating Server Profile to enable Firmware and OS Drivers using SUT] ********************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [debug] ********************************************************************************************************************************************************************************************
+TASK [debug] **********************************************************************************************************************
 ok: [WIN-1] => {
     "msg": "Server profile updated"
 }
 
-TASK [Joining domain lj.lab] ****************************************************************************************************************************************************************************
+TASK [Joining domain lj.lab] ******************************************************************************************************
 changed: [WIN-1]
 
-TASK [Monitoring SUT status for 'reboot the system' message] ********************************************************************************************************************************************
+TASK [Monitoring SUT status for 'reboot the system' message] **********************************************************************
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (50 retries left).
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (49 retries left).
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (48 retries left).
@@ -768,10 +787,10 @@ FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (36 ret
 FAILED - RETRYING: Monitoring SUT status for 'reboot the system' message (35 retries left).
 ok: [WIN-1 -> localhost]
 
-TASK [Rebooting host for the HPE drivers/firmware activation and waiting for it to restart] *************************************************************************************************************
+TASK [Rebooting host for the HPE drivers/firmware activation and waiting for it to restart] ***************************************
 changed: [WIN-1]
 
-TASK [Displaying install completed message] *************************************************************************************************************************************************************
+TASK [Displaying install completed message] ***************************************************************************************
 ok: [WIN-1] => {
     "msg": [
         "WIN-1.lj.lab Installation completed !",
@@ -779,41 +798,39 @@ ok: [WIN-1] => {
     ]
 }
 
-PLAY RECAP **********************************************************************************************************************************************************************************************
-WIN-1                      : ok=40   changed=24   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+PLAY RECAP ************************************************************************************************************************
+WIN-1                      : ok=39   changed=24   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0
 
 ```
 
-## Output sample of RHEL bare metal unprovisioning playbook 
+## Output sample of Windows Server bare metal unprovisioning playbook 
 ```
-ansible-playbook -i hosts WIN_unprovision.yml 
+ansible-playbook -i hosts WIN_unprovision.yml
 
-PLAY [Deleting provisioned Windows Server compute module(s)] ********************************************************************************************************
+PLAY [Deleting provisioned Windows Server compute module(s)] **********************************************************************
 
-TASK [Getting server profile "WIN-1" information] *******************************************************************************************************************
+TASK [Getting server profile "WIN-1" information] *********************************************************************************
 ok: [WIN-1 -> localhost]
 
-TASK [Powering off server hardware "Frame4, bay 3"] *****************************************************************************************************************
+TASK [Powering off server hardware "Frame4, bay 5"] *******************************************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Deleting server profile "WIN-1"] ******************************************************************************************************************************
+TASK [Deleting server profile "WIN-1"] ********************************************************************************************
 changed: [WIN-1 -> localhost]
 
-TASK [Result of the task to delete the server profile] **************************************************************************************************************
+TASK [Result of the task to delete the server profile] ****************************************************************************
 ok: [WIN-1] => {
     "msg": "Deleted profile"
 }
 
-TASK [Removing WIN-1 SSH key] ***************************************************************************************************************************************
-ok: [WIN-1 -> localhost]
+PLAY [Removing the DNS record for "{{ inventory_hostname }}"] *********************************************************************
 
-PLAY [Removing the DNS record for "{{ inventory_hostname }}"] *******************************************************************************************************
-
-TASK [Removing "192.168.3.175"" from "dc.lj.lab"] *******************************************************************************************************************
+TASK [Removing "192.168.3.175"" from "dc.lj.lab"] *********************************************************************************
 changed: [WIN-1 -> dc.lj.lab]
 
-PLAY RECAP **********************************************************************************************************************************************************
-WIN-1                      : ok=6    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+PLAY RECAP ************************************************************************************************************************
+WIN-1                      : ok=5    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
 ```
 
 ## Thank you

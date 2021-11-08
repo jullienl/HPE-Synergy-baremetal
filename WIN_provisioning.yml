@@ -1,5 +1,4 @@
 ---
-
 # Performing automated Windows Server 2022 Boot from SAN installation on Gen10 Synergy Module(s) using an unattended file and a HPE OneView Server Profile Template
 
 - name: Performing an unattended Windows Server 2022 Boot from SAN installation on a Gen10 Synergy Module using a OneView Server Profile Template
@@ -113,40 +112,29 @@
       delegate_to: localhost
       register: result
 
-    - name: Capturing information for the customization of the unattend file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]
+    # - debug: var=server_profile
+    # - debug: var=serial_number
+    # - debug: var=server_hardware
+    # - debug: var=compliance_preview
+    # - debug: var=created
+
+    - name: Capturing the server hardware name selected for Server Profile creation
       set_fact:
         server_hardware_name: "{{ server_hardware.name }}"
-        generation: "{{ server_hardware.generation }}"
-        lunuri: "{{ (server_profile.sanStorage.volumeAttachments | selectattr('bootVolumePriority', 'equalto', 'Primary') | map(attribute='volumeUri') | list)[0] }}"
+
+    - name: Capturing MAC of first two management NICs for the configuration of the network settings in configure_network.ps1 
+      set_fact:
         mac1: "{{ (server_profile.connectionSettings.connections | selectattr('id', 'equalto', 1) | map(attribute='mac') | list)[0] }}"
         mac2: "{{ (server_profile.connectionSettings.connections | selectattr('id', 'equalto', 2) | map(attribute='mac') | list)[0] }}"
 
-#     #- debug: var=server_profile
-#     #- debug: var=serial_number
-#     #- debug: var=server_hardware
-#     #- debug: var=compliance_preview
-#     #- debug: var=created
-
-#     #- debug: var=generation
-#     #- debug: var=lunuri
-#     #- debug: var=mac1 
+    # - debug: var=mac1 
+    # - debug: var=mac2
 
     - name: Showing the result of the Server Profile creation task
       debug:
         msg: "Hardware selected: {{ server_hardware_name }} - Result: {{ result.msg }}"
 
-    - name: Collecting volumes information
-      oneview_volume_facts:
-        config: "{{ config }}"
-      delegate_to: localhost
-
-    #- debug: var=storage_volumes
-      
-    - name: Capturing boot LUN size defined in the Server Profile to ensure that Windows Server will be installed on this disk using the kickstart file
-      set_fact:
-        size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
-
-    # - debug: var=size
+    # - debug: var=boot_lun_size
 
 # Creation of the SetupComplete.cmd to configure the network settings
 
@@ -273,8 +261,8 @@
       register: AMS_product_id  
       delegate_to: localhost
 
-      #- debug: msg='{{ iSUT_product_id.stdout }}'
-      #- debug: msg='{{ AMS_product_id.stdout }}'
+      # - debug: msg='{{ iSUT_product_id.stdout }}'
+      # - debug: msg='{{ AMS_product_id.stdout }}'
 
 # Adding a DNS record for the newly provisioned server in the defined DNS server 
 

@@ -70,6 +70,8 @@
 
     - set_fact:
         iso_label={{ iso_info.stdout }}
+    
+    #- debug: msg='{{ iso_label }}'
 
     - name: Checking if RHEL ISO file extraction is necessary on "{{ inventory_hostname }}"
       stat:
@@ -134,49 +136,62 @@
       delegate_to: localhost
       register: result
 
-    - name: Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]
+    # - debug: var=server_profile
+    # - debug: var=serial_number
+    # - debug: var=server_hardware
+    # - debug: var=compliance_preview
+    # - debug: var=created
+
+    - name: Capturing the boot information of the first fiber channel interface of the server profile
+      set_fact: 
+        fc_bootable: "{{ (server_profile.connectionSettings.connections | selectattr('functionType', 'equalto', 'FibreChannel') | map(attribute='boot.priority') | list)[0] }}"
+
+    # - debug: var=fc_bootable
+
+    - name: Capturing the server hardware name selected for Server Profile creation
       set_fact:
         server_hardware_name: "{{ server_hardware.name }}"
-        generation: "{{ server_hardware.generation }}"
+
+    - name: Capturing LUN uri of the primary boot volume (if any) for the customization of the kickstart file 
+      set_fact:
         lunuri: "{{ (server_profile.sanStorage.volumeAttachments | selectattr('bootVolumePriority', 'equalto', 'Primary') | map(attribute='volumeUri') | list)[0] }}"
-        mac: "{{ (server_profile.connectionSettings.connections | selectattr('id', 'equalto', 1) | map(attribute='mac') | list)[0] }}"
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
 
-    #- debug: var=server_profile
-    #- debug: var=serial_number
-    #- debug: var=server_hardware
-    #- debug: var=compliance_preview
-    #- debug: var=created
-
-    #- debug: var=generation
-    #- debug: var=lunuri
-    #- debug: var=mac 
+    # - debug: var=lunuri
 
     - name: Showing the result of the Server Profile creation task
       debug:
         msg: "Hardware selected: {{ server_hardware_name }} - Result: {{ result.msg }}"
 
-    - name: Collecting volumes information
+    - name: Capturing boot volume information (if any)
       oneview_volume_facts:
         config: "{{ config }}"
       delegate_to: localhost
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
 
     #- debug: var=storage_volumes
-      
+
     - name: Capturing boot LUN size defined in the Server Profile to ensure that OS will be installed on this disk using the kickstart file
       set_fact:
-        size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
+        boot_lun_size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
 
-    # - debug: var=size
+    - name: Setting boot LUN size as 'undefined' if booting from local logical drive
+      set_fact:
+        boot_lun_size: "undefined"
+      when: fc_bootable == "NotBootable"
+    
+    # - debug: var=boot_lun_size
 
 # Creation of the kickstart file
 
-    - name: Creating kickstart file with %pre script to detect the "{{ size }}GB" Boot From SAN volume
+    - name: Creating kickstart file with %pre script to detect the "{{ boot_lun_size }}GB" Boot From SAN volume if it exists
       template:
         src: files/{{ rhel_version }}/{{ kickstart }}
         dest: /opt/baremetal/{{ inventory_hostname }}/ks.cfg
       delegate_to: localhost
 
-# Creation of the new RHEL ISO image with unattended installation  
+# Creation of the new RHEL ISO image with unattended installation      
 
     - name: Creating customized bootable ISO 
       shell: >
@@ -327,8 +342,8 @@
       delay: 30 
       until:  server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
       delegate_to: localhost
-    
-    # Better to use the server_hardwares.serverSettings data than parsing SUT status
+
+  # Better to use the server_hardwares.serverSettings data than parsing SUT status
     # - name: Monitoring SUT status for 'reboot the system' message
     #   shell: |
     #     sut -status | grep -i 'User Action Needed'

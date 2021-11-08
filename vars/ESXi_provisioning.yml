@@ -25,5 +25,6 @@ esxi_build: "ESXi_17630552"
 # Name of the kickstart file available in files/ESXi_<build>
 kickstart: "ks-esxi7.1u2.sh"
 
-
+# Name of the network set attached to the Server Profile connections that will be used to connect the Virtual Machines (= VM Production Network Set)
+VM_network_set: "Production_network_set"
 

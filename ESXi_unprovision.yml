@@ -60,9 +60,6 @@
       set_fact:
         vmnics: "{{ host_vmnics.hosts_vmnics_info | json_query('\"' + inventory_fqdn + '\".dvswitch') }}"
 
-    # - debug: 
-    #     msg: "{{ vmnics |  json_query('\"' + vcenter_switch_name + '\"')   }} "
-
     - name: Removing host from "{{ vcenter_switch_name }}" distributed Switch
       vmware_dvs_host:
         hostname: "{{ vcenter_hostname }}"
@@ -123,7 +120,7 @@
 
 
 - name: Removing the DNS record for "{{ inventory_hostname }}"
-  hosts: RHEL
+  hosts: ESX
   gather_facts: no
   vars_files:
     - vars/ESXi_provisioning.yml

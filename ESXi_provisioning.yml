@@ -1,5 +1,4 @@
 ---
-
 # Performing automated ESXi 7.0 U2 Boot from SAN installation on Gen10 Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
 
 # Adding a DNS record for the server that will be provisioned in the defined DNS server
@@ -141,43 +140,78 @@
       delegate_to: localhost
       register: result
 
-    - name: Capturing information for the customization of the kickstart file [server generation - MAC of first management NIC - LUN uri of the primary boot volume]
+    # - debug: var=server_profile
+    # - debug: var=serial_number
+    # - debug: var=server_hardware
+    # - debug: var=compliance_preview
+    # - debug: var=created
+
+    - name: Capturing the boot information of the first fiber channel interface of the server profile
+      set_fact: 
+        fc_bootable: "{{ (server_profile.connectionSettings.connections | selectattr('functionType', 'equalto', 'FibreChannel') | map(attribute='boot.priority') | list)[0] }}"
+
+    # - debug: var=fc_bootable
+
+    - name: Capturing network set information from "{{ VM_network_set }}" attached to the two production NICs
+      oneview_network_set_facts:
+        config: "{{ config }}"
+        name: "{{ VM_network_set }}"
+      delegate_to: localhost 
+    
+    # - debug: var=network_sets
+
+    - name: Capturing the URI of network "{{ VM_network_set }}" attached to the two production NICs    
+      set_fact:
+        VM_network_set_uri: "{{ network_sets[0].uri }}"
+
+    # - debug: var=VM_network_set_uri
+
+    - name: Capturing the server hardware name selected for Server Profile creation
       set_fact:
         server_hardware_name: "{{ server_hardware.name }}"
-        generation: "{{ server_hardware.generation }}"
+
+    - name: Capturing MAC addresses of the production NICs attached to "{{ VM_network_set }}" for subsequent configuration of the Distributed vSwitch.
+      set_fact:
+        mac_prod_1: "{{ (server_profile.connectionSettings.connections | selectattr('networkUri', 'equalto', VM_network_set_uri) | map(attribute='mac') | list)[0] }}"
+        mac_prod_2: "{{ (server_profile.connectionSettings.connections | selectattr('networkUri', 'equalto', VM_network_set_uri) | map(attribute='mac') | list)[1] }}"
+
+    # - debug: var=mac_prod_1
+    # - debug: var=mac_prod_2
+
+    - name: Capturing LUN uri of the primary boot volume (if any) for the customization of the kickstart file 
+      set_fact:
         lunuri: "{{ (server_profile.sanStorage.volumeAttachments | selectattr('bootVolumePriority', 'equalto', 'Primary') | map(attribute='volumeUri') | list)[0] }}"
-        mac: "{{ (server_profile.connectionSettings.connections | selectattr('id', 'equalto', 1) | map(attribute='mac') | list)[0] }}"
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
 
-    #- debug: var=server_profile
-    #- debug: var=serial_number
-    #- debug: var=server_hardware
-    #- debug: var=compliance_preview
-    #- debug: var=created
-
-    #- debug: var=generation
-    #- debug: var=lunuri
-    #- debug: var=mac 
+    # - debug: var=lunuri
 
     - name: Showing the result of the Server Profile creation task
       debug:
         msg: "Hardware selected: {{ server_hardware_name }} - Result: {{ result.msg }}"
 
-    - name: Collecting volumes information
+    - name: Capturing boot volume information (if any)
       oneview_volume_facts:
         config: "{{ config }}"
       delegate_to: localhost
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
 
-    #- debug: var=storage_volumes
-      
-    - name: Capturing boot LUN size defined in the Server Profile to ensure that ESXi will be installed on this disk using the kickstart file
+    # - debug: var=storage_volumes
+
+    - name: Capturing boot LUN size defined in the Server Profile to ensure that OS will be installed on this disk using the kickstart file
       set_fact:
-        size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
+        boot_lun_size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
 
-    # - debug: var=size
+    - name: Setting boot LUN size as 'undefined' if booting from local logical drive
+      set_fact:
+        boot_lun_size: "undefined"
+      when: fc_bootable == "NotBootable"
+    
+    # - debug: var=boot_lun_size
 
 # Creation of the ks.tgz kickstart file
 
-    - name: Creating kickstart file with %pre script to detect the "{{ size }}GB" Boot From SAN volume
+    - name: Creating kickstart file with %pre script to detect the "{{ boot_lun_size }}GB" Boot From SAN volume if it exists
       template:
         src: files/{{ esxi_build }}/{{ kickstart }}
         dest: /opt/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel/ks.cfg
@@ -336,13 +370,15 @@
       delegate_to: localhost
       register: host_vmnics
 
-    #- debug: var=host_vmnics
-
-    - name: Capturing available vmnics for the distributed switch creation
+    # - debug: var=host_vmnics
+ 
+    - name: Capturing Production vmnics information for the distributed switch creation
       set_fact:
-        vmnics: "{{ host_vmnics.hosts_vmnics_info | json_query('\"' + inventory_fqdn + '\".available') }}"
+        vmnic_prod_1: "{{ (host_vmnics.hosts_vmnics_info | json_query('\"' + inventory_fqdn + '\".vmnic_details') | selectattr('mac', 'equalto', mac_prod_1 | lower ) | map(attribute='device') | list )[0] }}"
+        vmnic_prod_2: "{{ (host_vmnics.hosts_vmnics_info | json_query('\"' + inventory_fqdn + '\".vmnic_details') | selectattr('mac', 'equalto', mac_prod_2 | lower ) | map(attribute='device') | list )[0] }}"
 
-    #- debug: var=vmnics 
+    # - debug: var=vmnic_prod_1 
+    # - debug: var=vmnic_prod_2
     
     - name: Connecting host to "{{ vcenter_switch_name }}" distributed switch
       vmware_dvs_host:
@@ -351,9 +387,9 @@
         password: "{{ vcenter_password }}"
         esxi_hostname: "{{ inventory_fqdn }}"
         switch_name: "{{ vcenter_switch_name }}"
-        vmnics: "{{ vmnics }}"
-          # - vmnic4
-          # - vmnic5
+        vmnics: 
+          - "{{ vmnic_prod_1 }}"
+          - "{{ vmnic_prod_2 }}"
         state: present
         validate_certs: False
       delegate_to: localhost
