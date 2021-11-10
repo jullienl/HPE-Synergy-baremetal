@@ -1,8 +1,8 @@
-# HPE Synergy Bare metal provisioning
+# HPE Synergy bare metal provisioning
 
 Ansible project for automatic provisioning of bare metal HPE Synergy servers.
 
-Provisioning is done automatically using kickstart/unattend files, automatically generated ISO files, and HPE OneView server profile templates.
+Provisioning is done using kickstart/unattend files, automatically generated ISO files, and HPE OneView server profile templates.
 
 ## Use case
 
@@ -16,9 +16,9 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 ## Pre-requisites
 
 - HPE Synergy frame configured and at least one unused Synergy 480 Gen10 compute module
-- OneView Server Profile template defined for each desired OS with a logical local storage boot drive or a boot from SAN storage volume
+- OneView Server Profile Template defined for each desired OS with a local storage boot drive or a boot from SAN storage volume
 - Ansible controller node (see below for configuration) with a drive large enough to host the generated ISO files
-- Windows DNS server configured to be managed by Ansible (see the configuration below)
+- Windows DNS server configured to be managed by Ansible (see below for configuration)
 
 ## Ansible control node information
 
@@ -49,7 +49,7 @@ To learn more about **Setting up Windows host**, see https://docs.ansible.com/an
 
 3. Create an HPE Oneview Server Profile Template for each OS type. 
    
-   You can use the following playbooks to create the appropriate server profile templates:
+   The following playbooks can be used to create the appropriate server profile templates:
    - `ESXi_SPT_creation_Boot_from_Logical_Drive.yml`
    - `ESXi_SPT_creation_Boot_from_SAN.yml`
    - `RHEL_SPT_creation_Boot_from_Logical_Drive.yml` 
@@ -57,13 +57,13 @@ To learn more about **Setting up Windows host**, see https://docs.ansible.com/an
    - `WIN_SPT_creation_Boot_from_Logical_Drive.yml`
    - `WIN_SPT_creation_Boot_from_SAN.yml`
     
-      >**Note**: For boot from SAN playbooks, it is necessary to activate the native mode of Jinji2 using `Enable_jinja2_native.yml` to define the size of the SAN volume, see the notes in the playbooks.
+      >**Note**: For the boot from SAN playbooks, it is necessary to activate the native mode of Jinji2 to define the size of the SAN volume, for more information, see the notes in the boot from SAN playbooks.
 
    Server profile templates must meet the following parameters to be compatible with bare metal provsioning playbooks:
    - They must be defined with at least 6 network connections:
       * 2 for management 
       * 2 for FCoE 
-      * 2 for Production using a network set  
+      * 2 for production using a network set  
 
         >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for the two NICs connected to the defined network set to create the Distibuted switch for VM traffic. RHEL and Windows playbooks only create a team using the first two management NICs.   
 
