@@ -12,7 +12,7 @@
   vars:
     config: "{{ playbook_dir }}/oneview_config.json"
 
-    server_profile_template_name: "ESXi_BFS_N"
+    server_profile_template_name: "ESXi_BFS"
     
     server_hardware_type_name: "SY 480 Gen10 1"
     enclosure_group_name: "EG"
