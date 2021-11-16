@@ -1,5 +1,5 @@
 ---
-# Performing automated RHEL 8.3 Boot from SAN installation on Gen10 Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
+# Performing automated Red Hat Enterprise Linux 8.3 Boot from SAN installation on Gen10 Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
 
 # Adding a DNS record for the server that will be provisioned in the defined DNS server
 
