@@ -4,7 +4,7 @@
 # host_management_ip: "192.168.3.172"
 
 # Name of the HPE OneView Server Profile Template that we will use to generate the HPE OneView Server Profile
-server_template: "ESXi7_BFS"
+server_template: "ESXi_BFS"
 
 domain: "lj.lab"
 gateway: "192.168.1.1"
