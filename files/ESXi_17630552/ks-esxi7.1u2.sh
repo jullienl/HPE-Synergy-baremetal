@@ -51,10 +51,11 @@ fi
 %firstboot --interpreter=busybox
 
 # Hostname and domain settings
-HostName="{{inventory_hostname}}"
-SuffixDNS="{{domain}}"
-FQDN="{{inventory_hostname}}.{{domain}}"
+esxcli system hostname set --host="{{inventory_hostname}}"
+esxcli system hostname set --fqdn="{{inventory_hostname}}.{{domain}}"
+esxcli network ip dns search add --domain="{{domain}}"
 
+# Adding Ansible control node SSH public key to host authorized_keys 
 echo "Installing Ansible SSH public key"
 cat <<EOF >/etc/ssh/keys-root/authorized_keys
 {{ansible_ssh_public_key}}
