@@ -110,7 +110,7 @@ This playbook performs for each inventory host the automated installation of RHE
   - Wait until the SUT installation is complete
 - Reboot the server for the activation of HPE drivers/firmware 
 
-### RHEL_unprovision.yml
+### RHEL_unprovisioning.yml
 This playbook performs for each inventory host the automated un-provisioning of the RHEL OS:
 - Power off the server
 - Delete the HPE OneView Server Profile
@@ -145,7 +145,7 @@ This playbook performs for each inventory host the automated installation of VMw
 - Set the Power Management Policy to high-performance
 - Enable SSH and Shell services
 
-### ESXi_unprovision.yml
+### ESXi_unprovisioning.yml
 This playbook performs for each inventory host the automated unprovisioning of the VMware ESXi OS:
 - Put the host in maintenance mode
 - Remove the Host from the defined Distributed vSwitch
@@ -194,7 +194,7 @@ This playbook performs for each inventory host the automated installation of Win
 - Join the newly provisioned server to the defined Windows domain
 - Reboot the server for activation of HPE drivers/firmware and domain membership
 
-### WIN_unprovision.yml
+### WIN_unprovisioning.yml
 This playbook performs for each inventory host the automated unprovisioning of the Windows Server OS:
 - Power down the server
 - Delete the HPE OneView server profile
@@ -397,7 +397,7 @@ ESX-1                      : ok=48   changed=29   unreachable=0    failed=0    s
 ## Output sample of ESXi bare metal unprovisioning playbook 
 
 ```
-ansible-playbook -i hosts ESXi_unprovision.yml
+ansible-playbook -i hosts ESXi_unprovisioning.yml
 
 PLAY [Deleting a provisioned ESXi compute module] *********************************************************************************
 
@@ -616,7 +616,7 @@ RHEL-1                     : ok=40   changed=18   unreachable=0    failed=0    s
 
 ## Output sample of RHEL bare metal unprovisioning playbook 
 ```
-ansible-playbook -i hosts RHEL_unprovision.yml 
+ansible-playbook -i hosts RHEL_unprovisioning.yml 
 
 PLAY [Deleting provisioned RHEL compute module(s)] *********************************************************************************************************************************************************************
 
@@ -818,7 +818,7 @@ WIN-1                      : ok=39   changed=24   unreachable=0    failed=0    s
 
 ## Output sample of Windows Server bare metal unprovisioning playbook 
 ```
-ansible-playbook -i hosts WIN_unprovision.yml
+ansible-playbook -i hosts WIN_unprovisioning.yml
 
 PLAY [Deleting provisioned Windows Server compute module(s)] **********************************************************************
 
