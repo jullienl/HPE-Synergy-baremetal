@@ -2,7 +2,9 @@ vmaccepteula
 rootpw  {{root_password}}
 %include /tmp/DiskConfig
 network --device=vmnic0 --bootproto=static --addvmportgroup=1 --ip={{host_management_ip}} --netmask={{netmask}} --gateway={{gateway}} --nameserver={{nameserver}} --hostname={{inventory_hostname}}   
-reboot     
+reboot   
+
+
 %pre --interpreter=busybox
 # Finding boot volume for the OS installation
 # Using minimum size difference with Server Profile size to identify the disk
@@ -43,3 +45,17 @@ else
     echo "clearpart --firstdisk=local --overwritevmfs">/tmp/DiskConfig
     echo "install --firstdisk=local --overwritevmfs --novmfsondisk">>/tmp/DiskConfig
 fi    
+
+
+
+%firstboot --interpreter=busybox
+
+# Hostname and domain settings
+HostName="{{inventory_hostname}}"
+SuffixDNS="{{domain}}"
+FQDN="{{inventory_hostname}}.{{domain}}"
+
+echo "Installing Ansible SSH public key"
+cat <<EOF >/etc/ssh/keys-root/authorized_keys
+{{ansible_ssh_public_key}}
+EOF

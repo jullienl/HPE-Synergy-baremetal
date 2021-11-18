@@ -8,6 +8,9 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 ESX-1 host_management_ip=192.168.3.171 
 #ESX-2 host_management_ip=192.168.3.172 
 
+[ESX:vars]
+ansible_python_interpreter=/bin/python  
+
 [RHEL]
 RHEL-1 host_management_ip=192.168.3.173 
 #RHEL-2 host_management_ip=192.168.3.174

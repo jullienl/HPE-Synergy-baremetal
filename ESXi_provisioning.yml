@@ -39,6 +39,8 @@
     - ansible_python_interpreter: python3
     - ansible_host_key_checking: false
     - validate_certs: false
+    - ssh_known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}" 
+    - ansible_ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
 
   tasks: 
 
@@ -292,7 +294,7 @@
     - debug:
         msg: "{{ inventory_hostname }} installation took {{ (boot_wait_time.elapsed / 60) | round | int }} minutes"
 
-    - name: Wait a little longer so that the ESX host is truly ready to be added to the vcenter
+    - name: Wait a little longer so that the ESX host is truly ready to be added to vCenter
       wait_for: 
         timeout: 60
       delegate_to: localhost

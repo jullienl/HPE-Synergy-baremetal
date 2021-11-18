@@ -17,7 +17,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 - HPE Synergy frame configured and at least one unused Synergy 480 Gen10 compute module
 - OneView Server Profile Template defined for each desired OS with a local storage boot drive or a boot from SAN storage volume
-- Ansible controller node (see below for configuration) with a drive large enough to host the generated ISO files
+- Ansible control node (see below for configuration) with a drive large enough to host the generated ISO files
 - Windows DNS server configured to be managed by Ansible (see below for configuration)
 
 ## Ansible control node information
@@ -29,7 +29,7 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 ## Configure Ansible control node 
 
-To configure the Ansible controller node, see [Ansible_control_node_requirements.md](https://github.com/jullienl/HPE-Synergy-baremetal/blob/master/files/Ansible_control_node_requirements.md) in `/files`
+To configure the Ansible control node, see [Ansible_control_node_requirements.md](https://github.com/jullienl/HPE-Synergy-baremetal/blob/master/files/Ansible_control_node_requirements.md) in `/files`
 
 ## Configure Windows DNS Server 
 
@@ -95,7 +95,7 @@ This playbook performs for each inventory host the automated installation of RHE
   - Set root password
   - Create a %pre script to detect the primary boot from SAN volume (if any)
   - Create a %post to set RHEL repositories and hostname
-  - Add Ansible Control node SSH public key to .ssh/authorized_keys
+  - Add Ansible control node SSH public key to .ssh/authorized_keys
   - Set keyboard and language settings
   - Set time zone
   - Set ntp servers
@@ -131,6 +131,8 @@ This playbook performs for each inventory host the automated installation of VMw
   - Set IP parameters
   - Set root password
   - Create a %pre script to detect the primary boot from SAN volume (if any)
+  - Create a %firstboot to set hostname, DNS suffix and FQDN
+  - Add Ansible control node SSH public key to /etc/ssh/keys-root/authorized_keys at %firstboot
 - Generate a temporary ISO file with the customized kickstart file 
 - Power on and boot the inventory host from created ISO using iLO virtual media
 - Wait until ESXi installation is complete
