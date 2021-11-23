@@ -148,7 +148,7 @@
           $mac2="{{ mac2 }}"
           $net2=get-netadapter | where MacAddress -eq $mac2.replace(":","-") | select name
           New-NetLbfoTeam -Name mgmt_nw_team -TeamMembers $net1.name,$net2.name -confirm:$false
-          netsh interface ip set address mgmt_nw_team static "{{host_management_ip}}" "{{netmask}}" "{{gateway}}" 1 
+          netsh interface ip set address mgmt_nw_team static {{host_management_ip}} {{netmask}} {{gateway}}
           netsh interface ip add dns mgmt_nw_team "{{nameserver1}}"
           netsh interface ip add dns mgmt_nw_team "{{nameserver2}}" index=2
           $team_index = Get-NetAdapter -Name mgmt_nw_team | % ifindex
