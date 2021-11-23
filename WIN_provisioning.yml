@@ -372,7 +372,10 @@
         name: "{{ server_hardware.name }}"
       retries: 50
       delay: 30 
-      until:  server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
+      until:  >
+        (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "Activated") 
+        or 
+        (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot")
       delegate_to: localhost
 
 # Rebooting host for the HPE drivers/firmware activation
@@ -381,10 +384,10 @@
       win_reboot:
         msg: "Reboot initiated by Ansible"
         connect_timeout: 5
-        reboot_timeout: 600
+        reboot_timeout: 1000
         pre_reboot_delay: 0
         post_reboot_delay: 30
-        test_command: whoami
+      when: server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
 
     - name: Displaying install completed message
       debug: 
