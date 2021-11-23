@@ -26,7 +26,7 @@ windows_version: "WIN_2022"
 # Name of the kickstart file available in files/WIN_<version>
 unattend: "autounattend.xml"
 
-# Name of the HPE Packages founf in <Ansible_project_dir>/files
+# Name of the HPE Packages found in <Ansible_project_dir>/files
 AMS_package: "AMS-cp046676.exe"
 iSUT_package: "iSUT-cp048420.exe"
 
