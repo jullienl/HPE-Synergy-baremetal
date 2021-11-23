@@ -340,19 +340,12 @@
         name: "{{ server_hardware.name }}"
       retries: 50
       delay: 30 
-      until:  server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
+      until:   >
+        (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "Activated") 
+        or 
+        (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot")
       delegate_to: localhost
 
-  # Better to use the server_hardwares.serverSettings data than parsing SUT status
-    # - name: Monitoring SUT status for 'reboot the system' message
-    #   shell: |
-    #     sut -status | grep -i 'User Action Needed'
-    #   register: sut_info
-    #   until: "sut_info.stdout is search('Reboot the system')"
-    #   retries: 50
-    #   delay: 30    
-    #- debug: msg={{ sut_info.stdout }}
-    
 # Rebooting host for the HPE drivers/firmware activation
 
     - name: Rebooting host for the HPE drivers/firmware activation and waiting for it to restart
