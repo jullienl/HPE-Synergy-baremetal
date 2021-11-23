@@ -274,7 +274,7 @@
     - vars/windows_dns.yml
     # - vars/encrypted_credentials.yml
   tasks:
-    - name: Adding "{{ inventory_hostname }}" with "{{ host_management_ip }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
+    - name: Adding {{ inventory_hostname }} with {{ host_management_ip }} on {{ dns_server }} in {{ domain }} DNS domain
       community.windows.win_dns_record:
         name: "{{ inventory_hostname }}"
         type: "A"
