@@ -7,9 +7,10 @@ Provisioning is done using kickstart/unattend files, automatically generated ISO
 ## Use case
 
 The different playbooks can be used to provision 3 types of operating systems:
+
 - Red Hat Enterprise Linux or equivalent
 - VMware ESXi 6.7 and 7
-- Windows Server 2022 or equivalent 
+- Windows Server 2022 or equivalent
 
 One playbook can provision one OS type on one or multiple servers as defined by the Ansible inventory file.
 
@@ -22,73 +23,81 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 ## Ansible control node information
 
-- It runs Ansible 
+- It runs Ansible
 - It can be a physical server or a Virtual Machine
 - It is used as the staging destination for the preparation of the ISO file(s)
 - It runs `nginx` web services to host the created and customized ISO files from which the bare metal servers will boot from using iLO virtual media.
 
-## Configure Ansible control node 
+## Configure Ansible control node
 
 To configure the Ansible control node, see [Ansible_control_node_requirements.md](https://github.com/jullienl/HPE-Synergy-baremetal/blob/master/files/Ansible_control_node_requirements.md) in `/files`
 
-## Configure Windows DNS Server 
+## Configure Windows DNS Server
 
 The Windows DNS Server to be managed by Ansible should meet below requirements:
+
 - PowerShell 3.0 or newer
 - .NET 4.0 to be installed
 - A WinRM listener should be created and activated
 
-To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https://github.com/ansible/ansible/blob/devel/examples/scripts/ConfigureRemotingForAnsible.ps1) on the Windows Server to set up the basics. This script sets up both HTTP and HTTPS listeners with a self-signed certificate and enables the `Basic` authentication option on the service. This is an offical PowerShell script from Ansible repository. 
+To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https://github.com/ansible/ansible/blob/devel/examples/scripts/ConfigureRemotingForAnsible.ps1) on the Windows Server to set up the basics. This script sets up both HTTP and HTTPS listeners with a self-signed certificate and enables the `Basic` authentication option on the service. This is an offical PowerShell script from Ansible repository.
 To learn more about **Setting up Windows host**, see https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup
 
 ## Preparation
 
 1. Update all variables located in `/vars` and in `/group_vars/Windows.yml` for the Windows host provisioning
-  
+
 2. Copy the desired OS ISO versions on a web server defined by `{{ src_iso_url }}` and `{{ src_iso_file }}` variables.
 
-3. Create an HPE Oneview Server Profile Template for each OS type. 
-   
+3. Create an HPE Oneview Server Profile Template for each OS type.
+
    The following playbooks can be used to create the appropriate server profile templates:
+
    - `ESXi_SPT_creation_Boot_from_Logical_Drive.yml`
    - `ESXi_SPT_creation_Boot_from_SAN.yml`
-   - `RHEL_SPT_creation_Boot_from_Logical_Drive.yml` 
+   - `RHEL_SPT_creation_Boot_from_Logical_Drive.yml`
    - `RHEL_SPT_creation_Boot_from_SAN.yml`
    - `WIN_SPT_creation_Boot_from_Logical_Drive.yml`
    - `WIN_SPT_creation_Boot_from_SAN.yml`
-    
-      >**Note**: For the boot from SAN playbooks, it is necessary to activate the native mode of Jinji2 to define the size of the SAN volume, for more information, see the notes in the boot from SAN playbooks.
+
+     > **Note**: For the boot from SAN playbooks, it is necessary to activate the native mode of Jinji2 to define the size of the SAN volume, for more information, see the notes in the boot from SAN playbooks.
 
    Server profile templates must meet the following parameters to be compatible with bare metal provsioning playbooks:
-   - They must be defined with at least 6 network connections:
-      * 2 for management 
-      * 2 for FCoE 
-      * 2 for production using a network set  
 
-        >**Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for the two NICs connected to the defined network set to create the Distibuted switch for VM traffic. RHEL and Windows playbooks only create a team using the first two management NICs.   
+   - They must be defined with at least 6 network connections:
+
+     - 2 for management
+     - 2 for FCoE
+     - 2 for production using a network set
+
+       > **Note**: ESXi playbook adds a second management NIC for vswitch0 and looks for the two NICs connected to the defined network set to create the Distibuted switch for VM traffic. RHEL and Windows playbooks only create a team using the first two management NICs.
 
    - They can be defined with either a boot from local storage (e.g. RAID 1 logical drive using the two internal drives) or a boot from SAN volume for operating system storage.
-      >**Notes**: Additional shared/private SAN volumes for vmfs datastore/cluster volumes can also be defined (RHEL and ESXi playbooks look for the boot LUN to install the OS).
+
+     > **Notes**: Additional shared/private SAN volumes for vmfs datastore/cluster volumes can also be defined (RHEL and ESXi playbooks look for the boot LUN to install the OS).
 
    - They must be defined with a firmware baseline with at least the `Firmware only` installation method as for RHEL and Windows provisioning, the HPE drivers are installed at the end of the playbook.
-        >**Note**: For ESXi, there is no need to install HPE drivers because HPE ESXi images include all the drivers and management software required to run ESXi on HPE servers, therefore there is no need to define a firmware baseline.
+     > **Note**: For ESXi, there is no need to install HPE drivers because HPE ESXi images include all the drivers and management software required to run ESXi on HPE servers, therefore there is no need to define a firmware baseline.
 
 ## How to protect sensitive credentials
 
 Vault files can be used to secure all passwords. To learn more, see https://docs.ansible.com/ansible/latest/user_guide/vault.html
-  - To encrypt a var file: `ansible-vault create --vault-id @prompt vars/encrypted_credentials.yml`
-  - To run a playbook with encrypted credentials: `ansible-playbook <playbook.yml> --ask-vault-pass`  
-  
+
+- To encrypt a var file: `ansible-vault create --vault-id @prompt vars/encrypted_credentials.yml`
+- To run a playbook with encrypted credentials: `ansible-playbook <playbook.yml> --ask-vault-pass`
+
 ## Description of the playbooks
 
 ### RHEL_provisioning.yml
+
 This playbook performs for each inventory host the automated installation of RHEL 8.3 Boot from SAN using a customized kickstart, the main steps are as follows:
+
 - Create a DNS record for the bare metal server in the defined Windows DNS server
 - Download the OS vendor ISO file from a web server
 - Mount the ISO and copy all files from the RHEL ISO image to a staging directory
 - Modify Legacy bios and UEFI bootloaders for kickstart installation from CDROM
 - Create a HPE OneView Server Profile from an existing Server Profile Template
-  - Display Server hardware automaticaly selected by HPE OneView 
+  - Display Server hardware automaticaly selected by HPE OneView
 - Capture the size of the primary boot volume (if any) for the customization of the kickstart file
 - Customize the kickstart file with among others:
   - Set IP parameters
@@ -99,7 +108,7 @@ This playbook performs for each inventory host the automated installation of RHE
   - Set keyboard and language settings
   - Set time zone
   - Set ntp servers
-- Generate a temporary ISO file with the customized kickstart file 
+- Generate a temporary ISO file with the customized kickstart file
 - Power on and boot the inventory host from created ISO using iLO virtual media
 - Wait until RHEL installation is complete
 - Delete the created ISO and all temporary files in the stagging location after the custom installation is complete
@@ -108,23 +117,27 @@ This playbook performs for each inventory host the automated installation of RHE
   - Configure HPE iSUT for online installation of HPE drivers for RHEL using HPE OneView
   - Update the HPE OneView Server Profile to initiate operating system driver (and firmware if necessary) updates using HPE SUT
   - Wait until the SUT installation is complete
-- Reboot the server for the activation of HPE drivers/firmware 
+- Reboot the server for the activation of HPE drivers/firmware
 
 ### RHEL_unprovisioning.yml
+
 This playbook performs for each inventory host the automated un-provisioning of the RHEL OS:
+
 - Power off the server
 - Delete the HPE OneView Server Profile
 - Remove the DNS record
 - Remove the host SSH key from .ssh/known_hosts
 
 ### ESXi_provisioning.yml
+
 This playbook performs for each inventory host the automated installation of VMware ESXi 7.0.2 Boot from SAN using a customized kickstart, the main steps are as follows:
+
 - Create a DNS record for the bare metal server in the defined Windows DNS server
 - Download the HPE ESXi Custom Image ISO file from a web server
 - Mount the ISO and copy all files from the ESXi HPE Custom ISO image to a staging directory
 - Modify Legacy bios and UEFI bootloaders for kickstart installation from CDROM
 - Create an HPE OneView Server Profile from an existing Server Profile Template
-  - Display Server hardware automaticaly selected by HPE OneView 
+  - Display Server hardware automaticaly selected by HPE OneView
 - Capture the size of the primary boot volume (if any) for the customization of the kickstart file
 - Capture MAC addresses of the production NICs attached to the defined network set for subsequent configuration of the Distributed vSwitch.
 - Customize the kickstart file with among others:
@@ -133,7 +146,7 @@ This playbook performs for each inventory host the automated installation of VMw
   - Create a %pre script to detect the primary boot from SAN volume (if any)
   - Create a %firstboot to set hostname, DNS suffix and FQDN
   - Add Ansible control node SSH public key to /etc/ssh/keys-root/authorized_keys at %firstboot
-- Generate a temporary ISO file with the customized kickstart file 
+- Generate a temporary ISO file with the customized kickstart file
 - Power on and boot the inventory host from created ISO using iLO virtual media
 - Wait until ESXi installation is complete
 - Delete the created ISO and all temporary files in the stagging location after the custom installation is complete
@@ -146,46 +159,49 @@ This playbook performs for each inventory host the automated installation of VMw
 - Enable SSH and Shell services
 
 ### ESXi_unprovisioning.yml
+
 This playbook performs for each inventory host the automated unprovisioning of the VMware ESXi OS:
+
 - Put the host in maintenance mode
 - Remove the Host from the defined Distributed vSwitch
-- Remove the host from the defined vCenter Server 
+- Remove the host from the defined vCenter Server
 - Power off the server
 - Delete HPE OneView Server Profile
 - Delete DNS record
 
-
 ### WIN_provisioning.yml
+
 This playbook performs for each inventory host the automated installation of Windows Server 2022 Boot from SAN using an unattended custom file, the main steps are as follows:
+
 - Download the OS vendor ISO file from a web server
 - Mount the ISO and copy all files from the Windows Server ISO image to a staging directory
 - Create an HPE OneView Server Profile from an existing Server Profile Template
-  - Display Server hardware automaticaly selected by HPE OneView 
-- Capture MAC address of first two management NICs for the configuration of the network settings in configure_network.ps1 
+  - Display Server hardware automaticaly selected by HPE OneView
+- Capture MAC address of first two management NICs for the configuration of the network settings in configure_network.ps1
 - Create $OEM$ resources to host the scripts that need to be executed at startup:
-  - Import a PowerShell script from the Ansible repository to %OEM% to configure Windows for remote management with Ansible 
+  - Import a PowerShell script from the Ansible repository to %OEM% to configure Windows for remote management with Ansible
   - Create a PowerShell script configure_network.ps1 to be launched by SetupComplete.cmd at startup to:
-    - Configure the NIC teaming with the first two NICs 
+    - Configure the NIC teaming with the first two NICs
     - Configure the IP parameters
 - Customize the unattend file with among others:
-    - Generate a standard Windows disk configuration for UEFI with four GPT partitions (WinRE/EFI/MSR/Windows):
-        - WinRE: 450MB
-        - EFI: 100MB
-        - MSR: 16MB
-        - Windows: use all available space
-    - Set region and language settings
-    - Set product key
-    - Set registered user and organization 
-    - Set time zone
-    - Set administrator password
-    - Launch winRM installation for Ansible at startup
-    - Set remote desktop
-    - Set computer name
+  - Generate a standard Windows disk configuration for UEFI with four GPT partitions (WinRE/EFI/MSR/Windows):
+    - WinRE: 450MB
+    - EFI: 100MB
+    - MSR: 16MB
+    - Windows: use all available space
+  - Set region and language settings
+  - Set product key
+  - Set registered user and organization
+  - Set time zone
+  - Set administrator password
+  - Launch winRM installation for Ansible at startup
+  - Set remote desktop
+  - Set computer name
 - Generate a temporary ISO file with customized unattend file and scripts
 - Power on and boot the inventory host from created ISO using iLO virtual media
 - Wait until Windows Server installation is complete
 - Delete the created ISO and all temporary files in the stagging location after the custom installation is complete
-- Add a DNS record for the newly provisioned server in the defined DNS server 
+- Add a DNS record for the newly provisioned server in the defined DNS server
 - Install the HPE drivers for Windows Server
   - Install HPE iSUT and HPE AMS on the newly provisioned server
   - Configure HPE iSUT for online installation of HPE drivers for Windows Server using HPE OneView
@@ -195,31 +211,33 @@ This playbook performs for each inventory host the automated installation of Win
 - Reboot the server for activation of HPE drivers/firmware and domain membership
 
 ### WIN_unprovisioning.yml
+
 This playbook performs for each inventory host the automated unprovisioning of the Windows Server OS:
+
 - Power down the server
 - Delete the HPE OneView server profile
 - Delete the DNS record
 
-
 ## Built and tested with
 
 The resources in this repository were tested with:
-- Ansible control node running on CentOS 8.2 VM: 
+
+- Ansible control node running on CentOS 8.2 VM:
   - Ansible 2.9.25 - Python 3.6.8 - python-hpOneView 6.30
-  - Community.general 3.8.0 
-  - Community.windows 1.7.0 
+  - Community.general 3.8.0
+  - Community.windows 1.7.0
   - Community.vmware 1.15.0
-  - Ansible Collection for HPE OneView 6.30 
-   
-- HPE OneView 6.30 
-- Synergy 480 Gen10 
+  - Ansible Collection for HPE OneView 6.30
+- HPE OneView 6.30
+- Synergy 480 Gen10
 - SSP 2021-05.03
- 
-- Provisioned OS tested successfully: 
+
+- Provisioned OS tested successfully:
   - RHEL-8.3.0-20201009.2-x86_64-dvd1.iso
   - VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso
+  - en-us_windows_server_version_2022_updated_october_2021_x64_dvd_b6e25591.iso
 
-## Output sample of ESXi bare metal provisioning playbook 
+## Output sample of ESXi bare metal provisioning playbook
 
 ```
 ansible-playbook -i hosts ESXi_provisioning.yml
@@ -393,8 +411,7 @@ ESX-1                      : ok=48   changed=29   unreachable=0    failed=0    s
 
 ```
 
-
-## Output sample of ESXi bare metal unprovisioning playbook 
+## Output sample of ESXi bare metal unprovisioning playbook
 
 ```
 ansible-playbook -i hosts ESXi_unprovisioning.yml
@@ -443,11 +460,10 @@ ESX-1                      : ok=11   changed=7    unreachable=0    failed=0    s
 
 ```
 
-
-## Output sample of RHEL bare metal provisioning playbook 
+## Output sample of RHEL bare metal provisioning playbook
 
 ```
-ansible-playbook -i hosts RHEL_provisioning.yml 
+ansible-playbook -i hosts RHEL_provisioning.yml
 
 PLAY [Creating a DNS record for the bare metal RHEL server] ************************************************************************************************************************************************************
 
@@ -610,13 +626,14 @@ ok: [RHEL-1] => {
 }
 
 PLAY RECAP *************************************************************************************************************************************************************************************************************
-RHEL-1                     : ok=40   changed=18   unreachable=0    failed=0    skipped=3    rescued=0    ignored=0   
+RHEL-1                     : ok=40   changed=18   unreachable=0    failed=0    skipped=3    rescued=0    ignored=0
 
 ```
 
-## Output sample of RHEL bare metal unprovisioning playbook 
+## Output sample of RHEL bare metal unprovisioning playbook
+
 ```
-ansible-playbook -i hosts RHEL_unprovisioning.yml 
+ansible-playbook -i hosts RHEL_unprovisioning.yml
 
 PLAY [Deleting provisioned RHEL compute module(s)] *********************************************************************************************************************************************************************
 
@@ -643,11 +660,12 @@ TASK [Removing "192.168.3.173"" from "dc.lj.lab"] ******************************
 changed: [RHEL-1 -> dc.lj.lab]
 
 PLAY RECAP *************************************************************************************************************************************************************************************************************
-RHEL-1                     : ok=6    changed=4    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+RHEL-1                     : ok=6    changed=4    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
 
 ```
 
 ## Output sample of Windows Server bare metal provisioning playbook
+
 ```
 ansible-playbook -i hosts WIN_provisioning.yml
 
@@ -816,7 +834,8 @@ WIN-1                      : ok=39   changed=24   unreachable=0    failed=0    s
 
 ```
 
-## Output sample of Windows Server bare metal unprovisioning playbook 
+## Output sample of Windows Server bare metal unprovisioning playbook
+
 ```
 ansible-playbook -i hosts WIN_unprovisioning.yml
 
