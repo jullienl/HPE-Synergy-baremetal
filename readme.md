@@ -16,10 +16,11 @@ One playbook can provision one OS type on one or multiple servers as defined by 
 
 ## Pre-requisites
 
-- HPE Synergy frame configured and at least one unused Synergy 480 Gen10 compute module
-- OneView Server Profile Template defined for each desired OS with a local storage boot drive or a boot from SAN storage volume
-- Ansible control node (see below for configuration) with a drive large enough to host the generated ISO files
-- Windows DNS server configured to be managed by Ansible (see below for configuration)
+- HPE Synergy frame configured and at least one unused Synergy 480 Gen10 compute module.
+- OneView Server Profile Templates defined for each desired OS with a local storage boot drive or a boot from SAN storage volume (see below for configuration).
+- OneView server profile templates must include the creation of an iLO local account. This account is required by the [community.general](https://galaxy.ansible.com/community/general) collection to manage an HPE iLO interface.
+- Ansible control node (see below for configuration) with a drive large enough to host the generated ISO files.
+- Windows DNS server configured to be managed by Ansible (see below for configuration).
 
 ## Ansible control node information
 

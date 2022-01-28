@@ -26,12 +26,12 @@ rhel_version: "RHEL_8.3.0"
 kickstart: "ks-rhel8.3.sh"
 
 # Name of the HPE Packages founf in <Ansible_project_dir>/files
-AMS_package: "amsd-2.4.1-1571.8.rhel8.x86_64.rpm"
-iSUT_package: "sut-2.8.0-26.linux.x86_64.rpm"
+AMS_package: "amsd-2.5.0-1675.24.rhel8.x86_64.rpm"
+iSUT_package: "sut-2.9.0-53.linux.x86_64.rpm"
 
 # RHEL Repositories to install packages not available in ISO
 RHEL_baseos: "https://liogw.lj.lab/deployment/rhel83-x64/BaseOS"
-RHEL_appstream: "https://liogw.lj.lab/deployment/rhel83-x64/appstream" 
+RHEL_appstream: "https://liogw.lj.lab/deployment/rhel83-x64/appstream"
 
 ###############################################################################################################################
 # kickstart file customization
@@ -40,17 +40,14 @@ RHEL_appstream: "https://liogw.lj.lab/deployment/rhel83-x64/appstream"
 root_password: "xxxxxxxx"
 
 # System timezone
-# America/New York, etc. 
-# To get the list of supported timezone values: timedatectl list-timezones 
+# America/New York, etc.
+# To get the list of supported timezone values: timedatectl list-timezones
 timezone: "Europe/Paris"
 ntp_servers: "0.centos.pool.ntp.org,1.centos.pool.ntp.org,2.centos.pool.ntp.org,3.centos.pool.ntp"
 
-# Keyboard layouts: us, fr, de, es, etc. 
+# Keyboard layouts: us, fr, de, es, etc.
 # To get the list of supported keyboard values: ls /usr/lib/kbd/keymaps/xkb/ | sed 's/.\{7\}$//'
 keyboard: "us"
-# System language: fr_FR, en_US, en_GB, de_DE, es_ES, etc. 
+# System language: fr_FR, en_US, en_GB, de_DE, es_ES, etc.
 # To get the list of supported language values: locale -a | grep _
 language: "en_US"
-
-
-
