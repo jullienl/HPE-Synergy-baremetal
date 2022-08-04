@@ -93,7 +93,7 @@
 
     - name: Mounting RHEL ISO and copying ISO files to /opt/baremetal/{{ inventory_hostname }}/ on "{{lookup("pipe","hostname")}}"
       shell: |
-        mount -o loop -t iso9660 {{ src_iso_directory }}/{{ src_iso_file }} /mnt/{{ inventory_hostname }}/
+        mount -o loop -t iso9660 --read-only {{ src_iso_directory }}/{{ src_iso_file }} /mnt/{{ inventory_hostname }}/
         cp -r /mnt/{{ inventory_hostname }}/. /opt/baremetal/{{ inventory_hostname }}/
         umount /mnt/{{ inventory_hostname }}
       args:
