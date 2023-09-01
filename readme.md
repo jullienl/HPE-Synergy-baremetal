@@ -77,6 +77,8 @@ To learn more about **Setting up Windows host**, see https://docs.ansible.com/an
 
      > **Notes**: Additional shared/private SAN volumes for vmfs datastore/cluster volumes can also be defined (RHEL and ESXi playbooks look for the boot LUN to install the OS).
 
+     > **IMPORTANT NOTE**: For successful boot LUN detection with RHEL and ESXi, it is essential to ensure that there are no other LUNs of the same size as the boot LUN presented to the host. Otherwise, LUN detection may fail and operating system files may be mistakenly copied to an incorrect LUN, resulting in OS boot failure.
+
    - They must be defined with a firmware baseline with at least the `Firmware only` installation method as for RHEL and Windows provisioning, the HPE drivers are installed at the end of the playbook.
      > **Note**: For ESXi, there is no need to install HPE drivers because HPE ESXi images include all the drivers and management software required to run ESXi on HPE servers, therefore there is no need to define a firmware baseline.
 
