@@ -1,8 +1,8 @@
 # HPE Synergy bare metal provisioning
 
-Ansible project for automatic provisioning of bare metal HPE Synergy servers.
+Ansible project for automatic provisioning of HPE Synergy bare metal servers.
 
-Provisioning is done using kickstart/unattend files, automatically generated ISO files, and HPE OneView server profile templates.
+Operating system provisioning (ESXi, RHEL and Windows server) is performed using kickstart/unattend files, automatically generated ISO files and HPE OneView server profile templates.
 
 ## Use case
 
