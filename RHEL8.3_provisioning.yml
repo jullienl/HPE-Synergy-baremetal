@@ -1,0 +1,418 @@
+---
+# Performing automated Red Hat Enterprise Linux 8.3 Boot from SAN installation on Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
+#
+# Commands that can be used to run this playbook:
+#    $ ansible-playbook -i hosts RHEL8.3_provisioning.yml -K
+#    (or --ask-become-pass)
+
+
+# Adding a DNS record in the defined DNS server for the server that will be provisioned 
+
+- name: Creating a DNS record for the bare metal RHEL server
+  hosts: RHEL
+  gather_facts: no
+  vars_files:
+    # - vars/RHEL8.3_provisioning.yml
+    - vars/windows_dns.yml
+    # - vars/encrypted_credentials.yml
+  tasks:
+    # - name: Adding "{{ inventory_hostname }}" with "{{ host_management_ip }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
+    #   community.windows.win_dns_record:
+    #     name: "{{ inventory_hostname }}"
+    #     type: "A"
+    #     value: "{{ host_management_ip }}"
+    #     zone: "{{ domain }}"
+    #     state: present
+    #   delegate_to: "{{ dns_server }}"
+
+- name: Performing an automated RHEL 8.3 Boot from SAN installation on a Synergy Module using a kickstart and a OneView Server Profile Template
+  hosts: RHEL
+  collections:
+    - hpe.oneview
+  gather_facts: no
+  vars_files:
+    - vars/RHEL8.3_provisioning.yml
+    - vars/iLOvars.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
+    # - vars/encrypted_credentials.yml
+  vars:
+    # HPE Synergy Composer configuration
+    config: "{{ playbook_dir }}/oneview_config.json"
+
+    # ansible_python_interpreter: python3
+    ansible_host_key_checking: false
+    validate_certs: false
+    ssh_known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}"
+    ansible_ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+  tasks:
+
+    - name: Checking if RHEL ISO file "{{ src_iso_file }}" exists in "{{ src_iso_directory }}" on "{{lookup("pipe","hostname")}}" 
+      stat:
+        path: "{{ src_iso_directory }}/{{ src_iso_file }}"
+      register: ISO_Present
+      delegate_to: localhost
+
+    - name: Creating the directory "{{ src_iso_directory }}" to host the ISO file on "{{lookup("pipe","hostname")}}"
+      become: yes
+      file:
+        path: "{{ src_iso_directory }}"
+        state: directory
+      when: ISO_Present.stat.exists == False
+      delegate_to: localhost
+
+    - name: Downloading file "{{ src_iso_file }}" to "{{lookup("pipe","hostname")}}" in "{{ src_iso_directory }}" if not present
+      become: yes
+      get_url:
+        url: "{{ src_iso_url }}/{{ src_iso_file }}"
+        dest: "{{ src_iso_directory }}"
+        validate_certs: no
+      when: ISO_Present.stat.exists == False
+      delegate_to: localhost
+
+    - name: Collecting ISO label (can be required for some booltloader modifications)
+      shell: isoinfo -i {{ src_iso_directory }}/{{ src_iso_file }} -d  | grep "Volume id" | awk '{ print substr ($0, 12 ) }'
+      register: iso_info
+      delegate_to: localhost
+
+    - set_fact: iso_label={{ iso_info.stdout }}
+
+    - debug: msg='{{ iso_label }}'
+
+    - name: Checking if RHEL ISO file extraction is necessary in "{{ staging_directory }}/baremetal/{{ inventory_hostname }}" on "{{ lookup("pipe","hostname") }}"
+      stat:
+        path: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}"
+      register: ISO_Extracted
+      delegate_to: localhost
+
+    # - debug: var=ISO_Extracted
+
+    - name: Creating "/mnt/{{ inventory_hostname }}" on "{{lookup("pipe","hostname")}}" 
+      become: yes
+      file:
+        path: /mnt/{{ inventory_hostname }}
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Creating "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/" on "{{lookup("pipe","hostname")}}" if it does not exist
+      become: yes
+      ansible.builtin.file:
+        path: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Mounting RHEL ISO "{{ src_iso_directory }}/{{ src_iso_file }}" to "/mnt/{{ inventory_hostname }}/" and copying ISO files to "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/" on "{{lookup("pipe","hostname")}}"
+      become: yes
+      shell: |
+        mount -o loop -t iso9660 --read-only {{ src_iso_directory }}/{{ src_iso_file }} /mnt/{{ inventory_hostname }}/
+        cp -r /mnt/{{ inventory_hostname }}/. {{ staging_directory }}/baremetal/{{ inventory_hostname }}/
+        umount /mnt/{{ inventory_hostname }}
+      # when: ISO_Extracted.stat.exists == False
+      delegate_to: localhost
+
+    # Modifying SYSLINUX and GRUB bootloaders for both legacy and UEFI implementations:
+
+    - name: Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM
+      become: yes
+      shell: |
+        sed -i '1,/quiet/s/quiet/quiet inst.ks=cdrom/'  {{ staging_directory }}/baremetal/{{ inventory_hostname }}/isolinux//isolinux.cfg
+        sed -i '1,/600/{s/600/50/}'  {{ staging_directory }}/baremetal/{{ inventory_hostname }}/isolinux//isolinux.cfg
+      delegate_to: localhost
+
+    - name: Modifying UEFI bootloader for kickstart installation from CDROM
+      become: yes
+      shell: |
+        sed -i '1,/quiet/s/quiet/quiet inst.ks=cdrom/'  {{ staging_directory }}/baremetal/{{ inventory_hostname }}/EFI/BOOT/grub.cfg
+        sed -i '1,/60/{s/60/5/}'  {{ staging_directory }}/baremetal/{{ inventory_hostname }}/EFI/BOOT/grub.cfg
+        sed -i '1,/1/{s/1/0/}'  {{ staging_directory }}/baremetal/{{ inventory_hostname }}/EFI/BOOT/grub.cfg
+      delegate_to: localhost
+
+    # Creating a Server Profile in HPE OneView from a boot from SAN Server Profile Template:
+
+    - name: Creating Server Profile "{{ inventory_hostname }}" from Server Profile Template "{{ server_template }}"
+      oneview_server_profile:
+        config: "{{ config }}"
+        data:
+          serverProfileTemplateName: "{{ server_template }}"
+          name: "{{ inventory_hostname }}"
+        # serverHardwareUri: "/rest/server-hardware/39313738-3234-584D-5138-323830343848"
+        # server_hardware: Encl1, bay 12
+        # If any hardware is provided, it tries to get one available
+      delegate_to: localhost
+      register: result
+
+    # - debug: var=server_profile
+    # - debug: var=serial_number
+    # - debug: var=server_hardware
+    # - debug: var=compliance_preview
+    # - debug: var=created
+
+    - name: Capturing the boot information of the first fiber channel interface of the server profile
+      set_fact:
+        fc_bootable: "{{ (server_profile.connectionSettings.connections | selectattr('functionType', 'equalto', 'FibreChannel') | map(attribute='boot.priority') | list)[0] }}"
+
+    # - debug: var=fc_bootable
+
+    - name: Capturing the server hardware name selected for Server Profile creation
+      set_fact:
+        server_hardware_name: "{{ server_hardware.name }}"
+
+    - name: Capturing LUN uri of the primary boot volume (if any) for the customization of the kickstart file
+      set_fact:
+        lunuri: "{{ (server_profile.sanStorage.volumeAttachments | selectattr('bootVolumePriority', 'equalto', 'Primary') | map(attribute='volumeUri') | list)[0] }}"
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
+
+    # - debug: var=lunuri
+
+    - name: Showing the result of the Server Profile creation task
+      debug:
+        msg: "Hardware selected: {{ server_hardware_name }} - Result: {{ result.msg }}"
+
+    - name: Capturing boot volume information (if any)
+      oneview_volume_facts:
+        config: "{{ config }}"
+      delegate_to: localhost
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
+
+    #- debug: var=storage_volumes
+
+    - name: Capturing boot LUN size defined in the Server Profile to ensure that OS will be installed on this disk using the kickstart file
+      set_fact:
+        boot_lun_size: "{{ ((storage_volumes | selectattr('uri', 'equalto', lunuri) | map(attribute='provisionedCapacity') | list)[0] | int / (1024*1024*1024) ) |int}}"
+      when: fc_bootable == "Primary" or fc_bootable == "Secondary"
+
+    - name: Setting boot LUN size as 'undefined' if booting from local logical drive
+      set_fact:
+        boot_lun_size: "undefined"
+      when: fc_bootable == "NotBootable"
+
+    # - debug: var=boot_lun_size
+
+    # Creation of the kickstart file
+
+    - name: Creating kickstart file with %pre script to detect the "{{ boot_lun_size }}GB" Boot From SAN volume if it exists
+      become: yes
+      template:
+        src: files/{{ rhel_version }}/{{ kickstart }}
+        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/ks.cfg"
+      delegate_to: localhost
+
+    # Creation of the new RHEL ISO image with unattended installation
+
+    - name: Creating customized bootable ISO in "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/"
+      become: yes
+      shell: >
+        mkisofs
+        -V {{ iso_label }}
+        -J
+        -R
+        -l
+        -v
+        -b isolinux/isolinux.bin
+        -c isolinux/boot.cat
+        -no-emul-boot
+        -boot-load-size 4
+        -boot-info-table
+        -eltorito-alt-boot
+        -e images/efiboot.img
+        -no-emul-boot
+        -o {{ staging_directory }}/baremetal/{{ inventory_hostname }}.iso
+        -graft-points
+        {{ staging_directory }}/baremetal/{{ inventory_hostname }}/
+      delegate_to: localhost
+
+    - name: Implanting MD5 checksum into the ISO to make it bootable
+      become: yes
+      shell: |
+        # Convert the ISO image to be compatible for a USB boot image
+        isohybrid --uefi {{ staging_directory }}/baremetal/{{ inventory_hostname }}.iso
+        # Implant MD5 checksum into the ISO, if not done, ISO will not boot…
+        implantisomd5 {{ staging_directory }}/baremetal/{{ inventory_hostname }}.iso
+      # when: iso_exists.stat.exists == False
+      delegate_to: localhost
+
+    - name: Creating "/usr/share/nginx/html/isos/" on "{{lookup("pipe","hostname")}}" if it does not exist
+      become: yes
+      ansible.builtin.file:
+        path: /usr/share/nginx/html/isos/
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Moving created ISO to the nginx default html folder "http://{{ lookup("pipe","hostname") }}/isos"
+      become: yes
+      shell: |
+        mv {{ staging_directory }}/baremetal/{{ inventory_hostname }}.iso /usr/share/nginx/html/isos/
+      delegate_to: localhost
+
+    - name: Update SELinux security contexts so that Nginx is allowed to serve content from the "/usr/share/nginx/html/isos/" directory.
+      become: yes
+      shell: |
+        chcon -vR system_u:object_r:httpd_sys_content_t:s0 /usr/share/nginx/html/isos/
+      delegate_to: localhost
+
+    # Starting the OS unattended installation
+
+    - name: Powering on and booting "{{ server_hardware_name }}" from created ISO using iLO Virtual Media
+      community.general.hpilo_boot:
+        host: "{{ server_hardware.mpHostInfo.mpIpAddresses[1].address }}"
+        login: "{{ iLO_username }}"
+        password: "{{ iLO_password }}"
+        media: cdrom
+        image: 'http://{{ lookup("pipe","hostname") }}/isos/{{ inventory_hostname }}.iso'
+      delegate_to: localhost
+
+    - name: Waiting for RHEL installation to complete - Waiting for "{{ host_management_ip }}" to respond...
+      wait_for:
+        timeout: 2000
+        host: "{{ host_management_ip }}"
+        port: 22
+      delegate_to: localhost
+      register: boot_wait_time
+
+    - debug:
+        msg: "{{ inventory_hostname }} installation took {{ (boot_wait_time.elapsed / 60) | round | int }} minutes"
+
+    # Cleaning up staging files
+
+    - name: Deleting all temporary files in the stagging location on "{{lookup("pipe","hostname")}}"
+      become: yes
+      file:
+        path: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}"
+        state: absent
+      delegate_to: localhost
+
+    - name: Deleting created ISO file in the web server directory at "http://{{ lookup("pipe","hostname") }}/isos/"
+      become: yes
+      file:
+        path: "/usr/share/nginx/html/isos/{{ inventory_hostname }}.iso"
+        state: absent
+      delegate_to: localhost
+
+    - name: Unmounting original ISO file on "{{lookup("pipe","hostname")}}"
+      become: yes
+      file:
+        path: "/mnt/{{ inventory_hostname }}"
+        state: absent
+      delegate_to: localhost
+
+    # Installing iSUT and AMS on the server for online installation of HPE drivers for RHEL
+
+    - name: Copying HPE iSUT rpm file to {{ inventory_hostname }}
+      remote_user: root
+      copy:
+        src: files/{{ rhel_version }}/{{ iSUT_package }}
+        dest: /tmp/sut.rpm
+        mode: 0755
+
+    - name: Copying HPE AMS rpm file to {{ inventory_hostname }}
+      remote_user: root
+      copy:
+        src: files/{{ rhel_version }}/{{ AMS_package }}
+        dest: /tmp/amsd.rpm
+        mode: 0755
+
+    - name: Installing iSUT
+      remote_user: root
+      yum:
+        name: /tmp/sut.rpm
+        state: present
+        disable_gpg_check: yes
+
+    - name: Installing AMS
+      remote_user: root
+      yum:
+        name: /tmp/amsd.rpm
+        state: present
+        disable_gpg_check: yes
+
+    - name: Waiting for iSUT installation to complete
+      wait_for:
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Configuring iSUT mode to allow OS driver updates via HPE OneView Server Profile
+      remote_user: root
+      command:
+        sut -set mode=autodeploy
+        #sut -set mode=AutoDeployReboot
+        #sut -set mode=AutoStage
+        #sut -set mode=OnDemand
+      register: sut_status
+
+    - debug: msg="{{ sut_status.stdout }}"
+
+    # Command required if iLO Security mode is FIPS
+    - name: Configuring iSUT credentials to communicate with iLO
+      remote_user: root
+      command: sut -set ilousername="{{ iLO_username }}" ilopassword="{{ iLO_password }}"
+      register: sut_credentials
+
+    # - debug: msg="{{ sut_credentials.stdout }}"
+
+    - name: Capturing facts about the HPE Synergy Service Pack "{{ SSP_version }}"
+      oneview_firmware_driver_facts:
+        config: "{{ config }}"
+        version: "{{ SSP_version }}"
+        name: "HPE Synergy Service Pack"
+      delegate_to: localhost
+
+    # - debug: var=firmware_drivers
+
+    - name: Capturing HPE Synergy Service Pack "{{ SSP_version }}" firmware baseline uri
+      set_fact:
+        firmwareBaselineUri: "{{ firmware_drivers.uri }}"
+
+    # - debug: var=firmwareBaselineUri    
+
+    # Changing the OneView Server Profile to enable OS drivers installation using the defined HPE Synergy Service Pack.
+
+    - name: Setting HPE Synergy Service Pack "{{ SSP_version }}" as the firmware baseline of server profile "{{ inventory_hostname }}" and enabling Firmware and OS Drivers using SUT
+      oneview_server_profile:
+        config: "{{ config }}"
+        state: "present"
+        data:
+          name: "{{ inventory_hostname }}"
+          firmware:
+            manageFirmware: true
+            firmwareBaselineUri: "{{ firmwareBaselineUri }}"
+            firmwareInstallType: "FirmwareAndOSDrivers"
+      delegate_to: localhost
+      register: result
+
+    - debug: msg="{{ result.msg }}"
+
+    # Waiting for HPE drivers to be installed
+
+    - name: Monitoring SUT status for 'reboot the system' message
+      oneview_server_hardware_facts:
+        config: "{{ config }}"
+        name: "{{ server_hardware.name }}"
+      retries: 100
+      delay: 60
+      until: >
+        (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "Activated") 
+        or 
+        (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot")
+      delegate_to: localhost
+
+    # Host reboots for the HPE drivers/firmware activation are managed by HPE OneView
+
+    # - name: Rebooting host for the HPE drivers/firmware activation and waiting for it to restart
+    #   remote_user: root
+    #   reboot:
+    #     msg: "Reboot initiated by Ansible"
+    #     connect_timeout: 5
+    #     reboot_timeout: 600
+    #     pre_reboot_delay: 0
+    #     post_reboot_delay: 30
+    #     test_command: whoami
+
+    - name: Displaying install completed message
+      debug:
+        msg:
+          - "{{ inventory_hostname }}.{{domain}} Installation completed !"
+          - "OS is configured and running the HPE OS drivers and firmware update." 
+          - "Check Server Profile activity of {{ inventory_hostname }} in HPE OneView."
+          - "To connect to the new host from Ansible control node, use: ssh root@{{ host_management_ip }}"

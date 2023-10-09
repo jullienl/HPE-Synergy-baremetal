@@ -1,0 +1,95 @@
+#   Playbook for server unprovisioning:
+#     - Power off the server
+#     - Delete the HPE OneView Server Profile
+#     - Remove the DNS record
+#     - Remove the host SSH key from .ssh/known_hosts on the Ansible control node
+#
+#   Commands that can be used to run this playbook:
+#     $ ansible-playbook -i "RHEL-1," Server_unprovisioning.yml 
+#     $ ansible-playbook -i "RHEL-1,ESX7-2" Server_unprovisioning.yml
+#     $ ansible-playbook -i hosts Server_unprovisioning.yml
+
+---
+- name: Deleting provisioned compute module(s)
+  hosts: all
+  collections:
+    - hpe.oneview
+  gather_facts: no
+
+  vars:
+    # HPE Synergy Composer configuration
+    config: "{{ playbook_dir }}/oneview_config.json"
+    # - ansible_python_interpreter: python3
+    ansible_host_key_checking: false
+    validate_certs: false
+
+  tasks: 
+
+    - name: Checking if server profile "{{ inventory_hostname }}" exists
+      oneview_server_profile_facts:
+        config: "{{ config }}"
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    # - debug: var=server_profiles
+   
+    - name : Getting server profile "{{ inventory_hostname }}" information
+      oneview_server_profile:
+         config: "{{ config }}"
+         state: "present"
+         data:
+            name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      when: server_profiles
+
+    # - debug: var=server_hardware
+
+    - name: Powering off server hardware "{{ inventory_hostname }}"
+      oneview_server_hardware:
+        config: "{{ config }}"
+        state: power_state_set
+        data:
+            name : "{{ server_hardware.name }}"
+            powerStateData:
+                powerState: "Off"
+                powerControl: "PressAndHold"
+      delegate_to: localhost
+      when: server_profiles
+
+    - name: Deleting server profile "{{ inventory_hostname }}"
+      oneview_server_profile:
+        config: "{{ config }}"
+        state: "absent"
+        data:
+          name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      when: server_profiles
+      register: result
+
+    - name: Result of the task to delete the server profile
+      debug:
+        msg: "{{ result.msg }}"
+      when: server_profiles
+
+    - name: Removing {{ inventory_hostname }} SSH key 
+      known_hosts:
+        name: '{{ inventory_hostname }}'
+        path: ~/.ssh/known_hosts
+        state: absent
+      delegate_to: localhost
+
+
+- name: Removing the DNS record from DNS server
+  hosts: all
+  gather_facts: no
+  vars_files:
+    vars/windows_dns.yml
+  tasks:
+    - name: Removing "{{ inventory_hostname }}" from "{{ dns_server }}" 
+      community.windows.win_dns_record:
+        name: "{{ inventory_hostname }}"
+        type: "A"
+        zone: "{{ domain }}"
+        state: absent
+      delegate_to: "{{ dns_server }}" 
+

@@ -1,22 +1,26 @@
+#   Playbook for server unprovisioning:
+#     - Power off the server
+#     - Delete the HPE OneView Server Profile
+#     - Remove the DNS record
+#     - Remove the host SSH key from .ssh/known_hosts on the Ansible control node
+#
+#   Commands that can be used to run this playbook:
+#     $ ansible-playbook -i "RHEL-1," ESXi_unprovisioning.yml 
+#     $ ansible-playbook -i "RHEL-1,ESX7-2" ESXi_unprovisioning.yml
+#     $ ansible-playbook -i hosts ESXi_unprovisioning.yml
+
 ---
-- name: Deleting a provisioned ESXi compute module 
-  hosts: ESX
+- name: Deleting provisioned compute module(s)
+  hosts: all
   collections:
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/ESXi_provisioning.yml
     - vars/vcentervars.yml
-    #- vars/encrypted_credentials.yml
   vars:
     # HPE Synergy Composer configuration
-    - config: "{{ playbook_dir }}/oneview_config.json"
-
-    - inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
-    
-    - ansible_python_interpreter: python3
-    - ansible_host_key_checking: false
-    - validate_certs: false
+    config: "{{ playbook_dir }}/oneview_config.json"
+    inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
 
   tasks: 
 
@@ -72,7 +76,7 @@
         validate_certs: False
       delegate_to: localhost
 
-    - name: Removing ESXi host "{{ inventory_fqdn }}" from vCenter "{{ vcenter_hostname }}"
+    - name: Removing ESXi host "{{ inventory_hostname }}" from vCenter "{{ vcenter_hostname }}"
       vmware_host:
         hostname: "{{ vcenter_hostname }}"
         username: "{{ vcenter_username }}"
@@ -84,6 +88,14 @@
         validate_certs: false
       delegate_to: localhost
 
+    - name: Checking if server profile "{{ inventory_hostname }}" exists
+      oneview_server_profile_facts:
+        config: "{{ config }}"
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    # - debug: var=server_profiles
+   
     - name : Getting server profile "{{ inventory_hostname }}" information
       oneview_server_profile:
          config: "{{ config }}"
@@ -91,10 +103,11 @@
          data:
             name: "{{ inventory_hostname }}"
       delegate_to: localhost
+      when: server_profiles
 
-    #- debug: var=server_hardware
+    # - debug: var=server_hardware
 
-    - name: Powering off server hardware "{{ server_hardware.name }}"
+    - name: Powering off server hardware "{{ inventory_hostname }}"
       oneview_server_hardware:
         config: "{{ config }}"
         state: power_state_set
@@ -104,6 +117,7 @@
                 powerState: "Off"
                 powerControl: "PressAndHold"
       delegate_to: localhost
+      when: server_profiles
 
     - name: Deleting server profile "{{ inventory_hostname }}"
       oneview_server_profile:
@@ -112,24 +126,33 @@
         data:
           name: "{{ inventory_hostname }}"
       delegate_to: localhost
+      when: server_profiles
       register: result
 
     - name: Result of the task to delete the server profile
       debug:
         msg: "{{ result.msg }}"
+      when: server_profiles
+
+    - name: Removing {{ inventory_hostname }} SSH key 
+      known_hosts:
+        name: '{{ inventory_hostname }}'
+        path: ~/.ssh/known_hosts
+        state: absent
+      delegate_to: localhost
 
 
-- name: Removing the DNS record for "{{ inventory_hostname }}"
-  hosts: ESX
+- name: Removing the DNS record from DNS server
+  hosts: all
   gather_facts: no
   vars_files:
-    - vars/ESXi_provisioning.yml
-    - vars/windows_dns.yml
+    vars/windows_dns.yml
   tasks:
-    - name: Removing "{{ host_management_ip }}"" from "{{ dns_server }}" 
+    - name: Removing "{{ inventory_hostname }}" from "{{ dns_server }}" 
       community.windows.win_dns_record:
         name: "{{ inventory_hostname }}"
         type: "A"
         zone: "{{ domain }}"
         state: absent
       delegate_to: "{{ dns_server }}" 
+

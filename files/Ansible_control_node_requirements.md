@@ -1,45 +1,51 @@
-# Requirements for the control node running Ansible on CentOS 8.3
+# Requirements for the control node running Ansible on Rocky Linux 9.2
+
+To ensure proper functionality of the Ansible playbooks, it is important to use a Fully Qualified Domain Name (FQDN) hostname for the control node running Ansible.
+```
+hostnamectl set-hostname <hostname>.<your-domain>
+```
 
 ## Clone the Github project
 ```
+sudo dnf install git
 mkdir ~/Projects
 cd ~/Projects
 git clone https://github.com/jullienl/HPE-Synergy-baremetal
 ```
 
 ## openssh installation
-```
-yum install openssh
-systemctl start sshd.service && systemctl enable sshd.service
-```
 
-## Generate an SSH key without a passphrase for the Ansible control node
+openssh should be installed by default.
+
+## Generate an SSH RSA key pair without a passphrase for the Ansible control node
 ```
-ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ""
+ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
 ``` 
 
 ## ISO creation tools required
 ```
-yum install mkisofs
+# isoinfo
+sudo dnf install epel-release
+sudo dnf install genisoimage
+# mkisofs
+sudo dnf install mkisofs
 # isohybrid
-yum install syslinux
+sudo dnf install syslinux
 # implantisomd5
-yum install isomd5sum
+sudo dnf install isomd5sum
 ```
 
 ## Ansible installation and requirements
 ```
-yum install net-tools
-yum install wget
-yum install git-all
-yum install python3
-yum install epel-release
-yum install ansible
+
+sudo dnf install python3-pip
+pip3 install setuptools-rust wheel
+pip3 install ansible-core
 ```
 
 ## Installation of ksvalidator (optional, useful to validate kickstart file modifications)
 ```
-yum install pykickstart
+sudo dnf install pykickstart
 ```
 ## Installation of the Ansible Collections used in these playbooks 
 ``` 
@@ -58,7 +64,7 @@ pip3 install -r ~/.ansible/collections/ansible_collections/hpe/oneview/requireme
 pip3 install --upgrade pip setuptools
 pip3 install --upgrade git+https://github.com/vmware/vsphere-automation-sdk-python.git
 pip3 install -r ~/.ansible/collections/ansible_collections/community/vmware/requirements.txt
-pip3 install requests #(not sure if it is not part of the third party libraries)
+pip3 install requests # (Should be already installed)
 ```
 
 ## Windows collection requirements
@@ -76,24 +82,19 @@ pip3 install python-hpilo
 ## ngnix web service
 ngnix is used to host the OS ISOs from which provisioned servers will boot using iLO virtual media.
 ```
-yum install nginx
-systemctl enable nginx
-systemctl start nginx
-firewall-cmd --permanent --add-service=http
-firewall-cmd --reload
+sudo dnf install nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --reload
 ``` 
 
-If you have a `ModuleNotFoundError: No module named 'six'` error, run the following command:
-```
-cp /usr/local/lib/python3.6/site-packages/six.py /usr/lib/python3.6/site-packages/
-```
-
 ## Enabling ngnix directory browsing
+sudo sed -i '0,/server {/s//&\n        autoindex on;/' /etc/nginx/nginx.conf
+sudo systemctl restart nginx
+
+## unzip
 ```
-sed -i  "0,/location \/ {/s//location \/ {\n        autoindex on;/" /etc/nginx/nginx.conf
-systemctl restart nginx
-```
-## unzip 
 unzip used to extract HPE Package to get product id information.
+sudo dnf install unzip #(should be already installed)
 ```
-yum install unzip

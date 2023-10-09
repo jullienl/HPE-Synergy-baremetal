@@ -1,5 +1,10 @@
 ---
 # Performing automated Windows Server 2022 Boot from SAN installation on Gen10 Synergy Module(s) using an unattended file and a HPE OneView Server Profile Template
+#
+# Command that can be used to run this playbook:
+#    $ ansible-playbook -i hosts WIN_provisioning.yml -K
+#    (or --ask-become-pass)
+
 
 - name: Performing an unattended Windows Server 2022 Boot from SAN installation on a Gen10 Synergy Module using a OneView Server Profile Template
   hosts: Windows
@@ -12,70 +17,76 @@
     #- vars/encrypted_credentials.yml
   vars:
     # HPE Synergy Composer configuration
-    - config: "{{ playbook_dir }}/oneview_config.json"
+    config: "{{ playbook_dir }}/oneview_config.json"
 
-    - inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
+    inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
 
-    - ansible_python_interpreter: python3
-    - ansible_host_key_checking: false
-    - validate_certs: false
+    # ansible_python_interpreter: python3
+    ansible_host_key_checking: false
+    validate_certs: false
 
   tasks:
-    # Staging the Windows Server ISO on Ansible Controller
-
-    - name: Checking if Windows Server ISO file exists on "{{lookup("pipe","hostname")}}"
+    
+    - name: Checking if Windows Server ISO file "{{ src_iso_file }}" exists in "{{ src_iso_directory }}" on "{{lookup("pipe","hostname")}}" 
       stat:
         path: "{{ src_iso_directory }}/{{ src_iso_file }}"
-      register: p
+      register: ISO_Present
       delegate_to: localhost
 
     - name: Creating the directory "{{ src_iso_directory }}" to host the ISO file on "{{ lookup("pipe","hostname") }}"
+      become: yes
       file:
         path: "{{ src_iso_directory }}"
         state: directory
+      when: ISO_Present.stat.exists == False
       delegate_to: localhost
 
-    - name: Downloading file "{{ src_iso_file }}" to "{{ lookup("pipe","hostname") }}" if not present
+    - name: Downloading file "{{ src_iso_file }}" to "{{ lookup("pipe","hostname") }}" in "{{ src_iso_directory }}" if not present
+      become: yes
       get_url:
         url: "{{ src_iso_url }}/{{ src_iso_file }}"
         dest: "{{ src_iso_directory }}"
         validate_certs: no
-      when: p.stat.exists == False
+      when: ISO_Present.stat.exists == False
       delegate_to: localhost
 
-    - name: Checking if Windows Server ISO file extraction is necessary on "{{ lookup("pipe","hostname") }}"
+    - name: Checking if Windows Server ISO file extraction is necessary in "{{ staging_directory }}/baremetal/{{ inventory_hostname }}" on "{{ lookup("pipe","hostname") }}"
       stat:
-        path: /opt/baremetal/{{ inventory_hostname }}
-      register: p
+        path: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}"
+      register: ISO_Extracted
       delegate_to: localhost
+
+    # - debug: var=ISO_Extracted
 
     - name: Creating /mnt/{{ inventory_hostname }} on "{{lookup("pipe","hostname")}}" if it does not exist
-      file:
+      become: yes
+      ansible.builtin.file:
         path: /mnt/{{ inventory_hostname }}
         state: directory
         mode: "0755"
       delegate_to: localhost
 
-    - name: Creating /opt/baremetal/{{ inventory_hostname }}/ on "{{lookup("pipe","hostname")}}" if it does not exist
-      file:
-        path: /opt/baremetal/{{ inventory_hostname }}
+    - name: Creating "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/" on "{{lookup("pipe","hostname")}}" if it does not exist
+      become: yes
+      ansible.builtin.file:
+        path: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
 
-    - name: Mounting Windows Server ISO and copying ISO files to /opt/baremetal/{{ inventory_hostname }}/ on "{{lookup("pipe","hostname")}}"
+    - name: Mounting Windows Server ISO  "{{ src_iso_directory }}/{{ src_iso_file }}" to "/mnt/{{ inventory_hostname }}/"  and copying ISO files to "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/" on "{{lookup("pipe","hostname")}}"
+      become: yes
       shell: |
-        mount -o loop --read-only {{ src_iso_directory }}/{{ src_iso_file }} /mnt/{{ inventory_hostname }}/
-        cp -r /mnt/{{ inventory_hostname }}/. /opt/baremetal/{{ inventory_hostname }}/
+        mount -o loop -t udf {{ src_iso_directory }}/{{ src_iso_file }} /mnt/{{ inventory_hostname }}/
+        cp -r /mnt/{{ inventory_hostname }}/. {{ staging_directory }}/baremetal/{{ inventory_hostname }}/
         umount /mnt/{{ inventory_hostname }}
-      args:
-        warn: false # To prevent warning
-      when: p.stat.exists == False
+      # when: ISO_Extracted.stat.exists == False
       delegate_to: localhost
 
     # Creating $OEM$ resources to host the different scripts that we need to run at startup
 
-    - name: Creating $OEM$ on "{{lookup("pipe","hostname")}}" in /opt/baremetal/{{ inventory_hostname }}/sources to execute scripts at startup
+    - name: Creating $OEM$ on "{{lookup("pipe","hostname")}}" in {{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources to execute scripts at startup
+      become: yes
       file:
         path: "{{ item }}"
         state: directory
@@ -83,18 +94,19 @@
         group: root
         mode: 0775
       loop:
-        - /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$
-        - /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1
-        - /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1/Temp
-        - /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$
-        - /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup
-        - /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts
+        - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$"
+        - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1"
+        - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1/Temp"
+        - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$"
+        - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup"
+        - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts"
       delegate_to: localhost
 
     - name: Download POSH script from GitHub to configure Windows for remote management with Ansible
+      become: yes
       get_url:
-        url: https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1
-        dest: /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1/Temp/winRM.ps1
+        url: https://raw.githubusercontent.com/jullienl/HPE-Synergy-baremetal/master/files/ConfigureRemotingForAnsible.ps1
+        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1/Temp/winRM.ps1"
         mode: "0775"
       delegate_to: localhost
 
@@ -139,9 +151,10 @@
     # Creation of the SetupComplete.cmd to configure the network settings
 
     - name: Creating configure_network.ps1 that will be launched by SetupComplete.cmd (creation of a team using the first two NICs and configuration of IP parameters)
+      become: yes
       copy:
         force: true
-        dest: /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts/configure_network.ps1
+        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts/configure_network.ps1"
         content: |
           $mac1="{{ mac1 }}"
           $net1=get-netadapter | where MacAddress -eq $mac1.replace(":","-") | select name
@@ -156,11 +169,12 @@
       delegate_to: localhost
 
     - name: Creating SetupComplete.cmd for the network settings
+      become: yes
       # SetupComplete.cmd automatically runs after the Windows Setup process
       # Windows Setup logs the action in the C:\Windows\Panther\UnattendGC\Setupact.log file
       copy:
         force: true
-        dest: /opt/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts/SetupComplete.cmd
+        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts/SetupComplete.cmd"
         content: |
           Powershell.exe -ExecutionPolicy Bypass -File "%SYSTEMROOT%/Setup/Scripts/configure_network.ps1" -WindowStyle Hidden > "%SYSTEMROOT%\Panther\UnattendGC\setupcomplete.log" 2>&1
       delegate_to: localhost
@@ -168,30 +182,34 @@
     # Creation of the new Windows Server ISO image with unattended installation
 
     - name: Updating autounattend.xml file
+      become: yes
       template:
         src: files/{{ windows_version }}/{{ unattend }}
-        dest: /opt/baremetal/{{ inventory_hostname }}
+        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}"
       delegate_to: localhost
 
-    - name: Creating customized bootable ISO
+    - name: Creating customized bootable ISO in "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/"
+      become: yes
       shell: >
         mkisofs 
-        --allow-limited-size 
-        -no-emul-boot 
-        -b "boot/etfsboot.com" 
-        -boot-load-seg 0 
-        -boot-load-size 8 
-        -eltorito-alt-boot 
-        -no-emul-boot 
-        -e "efi/microsoft/boot/efisys_noprompt.bin" 
-        -boot-load-size 1 
-        -iso-level 4 
-        -udf 
-        -o /opt/baremetal/{{ inventory_hostname }}.iso
-        /opt/baremetal/{{ inventory_hostname }}/
+        -J
+        -R
+        -l
+        -v
+        -b boot/etfsboot.com
+        -no-emul-boot
+        -boot-load-size 4
+        -boot-info-table
+        -eltorito-alt-boot
+        -e "efi/microsoft/boot/efisys_noprompt.bin"
+        -no-emul-boot
+        -o {{ staging_directory }}/baremetal/{{ inventory_hostname }}.iso
+        -graft-points
+        {{ staging_directory }}/baremetal/{{ inventory_hostname }}/
       delegate_to: localhost
 
     - name: Creating /usr/share/nginx/html/isos/ on "{{lookup("pipe","hostname")}}" if it does not exist
+      become: yes
       file:
         path: /usr/share/nginx/html/isos/
         state: directory
@@ -199,9 +217,17 @@
       delegate_to: localhost
 
     - name: Moving created ISO to the nginx default html folder of "{{ lookup("pipe","hostname") }}"
+      become: yes
       shell: |
-        mv /opt/baremetal/{{ inventory_hostname }}.iso /usr/share/nginx/html/isos/
+        mv {{ staging_directory }}/baremetal/{{ inventory_hostname }}.iso /usr/share/nginx/html/isos/
       delegate_to: localhost
+
+    - name: Update SELinux security contexts so that Nginx is allowed to serve content from the "/usr/share/nginx/html/isos/" directory.
+      become: yes
+      shell: |
+        chcon -vR system_u:object_r:httpd_sys_content_t:s0 /usr/share/nginx/html/isos/
+      delegate_to: localhost
+
 
     # Starting the OS unattended installation
 
@@ -216,7 +242,7 @@
 
     - name: Waiting for Windows Server installation to complete - Waiting for "{{ host_management_ip }}" to respond...
       wait_for:
-        timeout: 1500
+        timeout: 2000
         host: "{{ host_management_ip }}"
         port: 3389
       register: boot_wait_time
@@ -227,37 +253,28 @@
 
     # Cleaning up staging files
 
-    - name: Deleting all temporary files in the stagging location on "{{lookup("pipe","hostname")}}"
-      file:
-        path: "/opt/baremetal/{{ inventory_hostname }}"
-        state: absent
-      delegate_to: localhost
-
-    - name: Deleting created ISO file in the web server directory on "{{lookup("pipe","hostname")}}"
-      file:
-        path: "/usr/share/nginx/html/isos/{{ inventory_hostname }}.iso"
-        state: absent
-      delegate_to: localhost
-
-    - name: Unmounting original ISO file on "{{lookup("pipe","hostname")}}"
-      file:
-        path: "/mnt/{{ inventory_hostname }}"
-        state: absent
+    - name: Deleting all related files from staging location and nginx web server folder
+      become: yes
+      shell: |
+        rm -rf {{ inventory_hostname }}
+        rm -rf temp/{{ inventory_hostname }}
+        rm -f /usr/share/nginx/html/isos/{{ inventory_hostname }}.iso
+        rm -rf /mnt/{{ inventory_hostname }}
+      args:
+        chdir: "{{ staging_directory }}/baremetal"
       delegate_to: localhost
 
     - name: Collecting product_id found in install.xml file of the HPE iSUT package
+      become: yes
       shell: |
         unzip -p files/{{ windows_version }}/{{ iSUT_package }} install.xml | grep "product id" | awk '{ print substr ($0, 16, 36 ) }'
-      args:
-        warn: false # To prevent warning
       register: iSUT_product_id
       delegate_to: localhost
 
     - name: Collecting product_id found in install.xml file of the HPE AMS package
+      become: yes
       shell: |
         unzip -p files/{{ windows_version }}/{{ AMS_package }} install.xml | grep "product id" | awk '{ print substr ($0, 16, 36 ) }'
-      args:
-        warn: false # To prevent warning
       register: AMS_product_id
       delegate_to: localhost
 
@@ -270,7 +287,6 @@
   hosts: Windows
   gather_facts: no
   vars_files:
-    - vars/WIN_provisioning.yml
     - vars/windows_dns.yml
     # - vars/encrypted_credentials.yml
   tasks:
@@ -295,7 +311,7 @@
     # - vars/encrypted_credentials.yml
   vars:
     # HPE Synergy Composer configuration
-    - config: "{{ playbook_dir }}/oneview_config.json"
+    config: "{{ playbook_dir }}/oneview_config.json"
 
   tasks:
     - name: Copying HPE iSUT package file to {{ inventory_hostname }}
@@ -336,25 +352,52 @@
 
     - debug: msg="{{ sut_status.stdout }}"
 
-    # Changing the OneView Server Profile to enable OS drivers installation using the SSP/SPP.
+    # Command required if iLO Security mode is FIPS
+    - name: Configuring iSUT credentials to communicate with iLO
+      remote_user: root
+      command: sut -set ilousername="{{ iLO_username }}" ilopassword="{{ iLO_password }}"
+      register: sut_credentials
 
-    - name: Updating Server Profile to enable Firmware and OS Drivers using SUT
+    # - debug: msg="{{ sut_credentials.stdout }}"
+
+    - name: Capturing facts about the HPE Synergy Service Pack "{{ SSP_version }}"
+      oneview_firmware_driver_facts:
+        config: "{{ config }}"
+        version: "{{ SSP_version }}"
+        name: "HPE Synergy Service Pack"
+      delegate_to: localhost
+
+    # - debug: var=firmware_drivers
+
+    - name: Capturing HPE Synergy Service Pack "{{ SSP_version }}" firmware baseline uri
+      set_fact:
+        firmwareBaselineUri: "{{ firmware_drivers.uri }}"
+
+    # - debug: var=firmwareBaselineUri    
+
+    # Changing the OneView Server Profile to enable OS drivers installation using the defined HPE Synergy Service Pack.
+
+    - name: Setting HPE Synergy Service Pack "{{ SSP_version }}" as the firmware baseline of server profile "{{ inventory_hostname }}" and enabling Firmware and OS Drivers using SUT
       oneview_server_profile:
         config: "{{ config }}"
         state: "present"
         data:
           name: "{{ inventory_hostname }}"
           firmware:
+            manageFirmware: true
+            firmwareBaselineUri: "{{ firmwareBaselineUri }}"
             firmwareInstallType: "FirmwareAndOSDrivers"
       delegate_to: localhost
       register: result
 
     - debug: msg="{{ result.msg }}"
 
-    # Joining Windows domain
+    # Waiting for HPE drivers to be installed
+
+    # By the time, joining Microsoft Active Directory domain
 
     - name: Joining domain {{ domain }}
-      ansible.windows.win_domain_membership:
+      microsoft.ad.membership:
         dns_domain_name: "{{ domain }}"
         hostname: "{{ inventory_hostname }}"
         domain_admin_user: "{{ win_domain_admin_user }}"
@@ -368,27 +411,28 @@
       oneview_server_hardware_facts:
         config: "{{ config }}"
         name: "{{ server_hardware.name }}"
-      retries: 50
-      delay: 30
+      retries: 100
+      delay: 60
       until: >
         (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "Activated") 
         or 
         (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot")
       delegate_to: localhost
 
-    # Rebooting host for the HPE drivers/firmware activation
+    # Host reboots for the HPE drivers/firmware activation are managed by HPE OneView
 
-    - name: Rebooting host for the HPE drivers/firmware activation and waiting for it to restart
-      win_reboot:
-        msg: "Reboot initiated by Ansible"
-        connect_timeout: 5
-        reboot_timeout: 1000
-        pre_reboot_delay: 0
-        post_reboot_delay: 30
-      when: server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
+    # - name: Rebooting host for the HPE drivers/firmware activation and waiting for it to restart
+    #   win_reboot:
+    #     msg: "Reboot initiated by Ansible"
+    #     connect_timeout: 5
+    #     reboot_timeout: 1000
+    #     pre_reboot_delay: 0
+    #     post_reboot_delay: 30
+    #   when: server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot"
 
     - name: Displaying install completed message
       debug:
         msg:
           - "{{ inventory_hostname }}.{{domain}} Installation completed !"
-          - "OS is configured and running with HPE OS drivers."
+          - "OS is configured and running the HPE OS drivers and firmware update." 
+          - "Check Server Profile activity of {{ inventory_hostname }} in HPE OneView."
