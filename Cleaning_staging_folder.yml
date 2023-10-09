@@ -1,0 +1,13 @@
+# ansible-playbook Cleaning_staging_folder.yml -K
+---
+- name: Deleting all related files from staging location on the Ansible control node
+  hosts: localhost      
+  become: yes
+
+  tasks: 
+    - name: Cleaning...
+      shell: |
+        /bin/rm -rf /home/labrat/staging/baremetal/* 
+      #/home/labrat/staging/baremetal/.*
+
+  
