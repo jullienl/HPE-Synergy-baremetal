@@ -331,7 +331,7 @@
 
     # vCenter and ESXi configuration
 
-      - name: Creating ESXi cluster "{{ cluster_name }}" in vCenter "{{ vcenter_hostname }}" if not present 
+    - name: Creating ESXi cluster "{{ cluster_name }}" in vCenter "{{ vcenter_hostname }}" if not present 
       community.vmware.vmware_cluster:
         hostname: '{{ vcenter_hostname }}'
         username: '{{ vcenter_username }}'
