@@ -2,8 +2,10 @@
 # Performing automated ESXi 7.0 U3 Boot from SAN installation on Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
 #
 # Command that can be used to run this playbook:
-#    $ ansible-playbook -i hosts ESXi7.0.u3_provisioning.yml -K
-#    (or --ask-become-pass)
+#    $ ansible-playbook -i hosts ESXi7.0.u3_provisioning.yml --ask-vault-password --ask-become-pass
+#    or
+#    $ ansible-playbook -i hosts ESXi7.0.u3_provisioning.yml --vault-password-file ~/secrets/vault_pass.txt  --become-password-file ~/secrets/become_pass.txt 
+#>
 
 # Adding a DNS record for the server that will be provisioned in the defined DNS server
 
@@ -95,22 +97,6 @@
         mode: "0755"
       delegate_to: localhost
 
-    - name: Creating "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/" on "{{lookup("pipe","hostname")}}" if it does not exist
-      become: yes
-      ansible.builtin.file:
-        path: "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}"
-        state: directory
-        mode: "0755"
-      delegate_to: localhost
-
-    - name: Creating "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel" on "{{lookup("pipe","hostname")}}" if it does not exist
-      become: yes
-      ansible.builtin.file:
-        path: "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel"
-        state: directory
-        mode: "0755"
-      delegate_to: localhost
-
     - name: Mounting HPE ESXi Custom ISO "{{ src_iso_directory }}/{{ src_iso_file }}" to "/mnt/{{ inventory_hostname }}/" and copying ISO files to "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/" on "{{lookup("pipe","hostname")}}"
       become: yes
       shell: |
@@ -120,20 +106,10 @@
       # when: ISO_Extracted.stat.exists == False
       delegate_to: localhost
 
-    # Modifying SYSLINUX and GRUB bootloaders for both legacy and UEFI implementations:
-
-    - name: Modifying legacy bios SYSLINUX bootloader for kickstart installation from CDROM
-      become: yes
-      shell: |
-        sed -i 's/kernelopt=cdromBoot runweasel/kernelopt=ks=file:\/\/etc\/vmware\/weasel\/ks.cfg/' {{ staging_directory }}/baremetal/{{ inventory_hostname }}/boot.cfg
-        sed -i 's/imgpayld.tgz/& --- \/ks.tgz/' {{ staging_directory }}/baremetal/{{ inventory_hostname }}/boot.cfg
-      delegate_to: localhost
-
     - name: Modifying UEFI bootloader for kickstart installation from CDROM
       become: yes
       shell: |
-        sed -i 's/kernelopt=cdromBoot runweasel/kernelopt=ks=file:\/\/etc\/vmware\/weasel\/ks.cfg/' {{ staging_directory }}/baremetal/{{ inventory_hostname }}/efi/boot/boot.cfg
-        sed -i 's/imgpayld.tgz/& --- \/ks.tgz/' {{ staging_directory }}/baremetal/{{ inventory_hostname }}/efi/boot/boot.cfg
+        sed -i 's/kernelopt=cdromBoot runweasel/kernelopt=runweasel ks=cdrom:\/KS.CFG/' {{ staging_directory }}/baremetal/{{ inventory_hostname }}/efi/boot/boot.cfg
       delegate_to: localhost
 
     # Creating a Server Profile in HPE OneView from a boot from SAN Server Profile Template:
@@ -226,30 +202,15 @@
       become: yes
       template:
         src: files/{{ esxi_build }}/{{ kickstart }}
-        dest: "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel/ks.cfg"
+        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/KS.CFG"
       delegate_to: localhost
 
-    - name: Preparing ks.cfg kickstart file to make the new ISO in "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel/ks.cfg"
+    - name: Prepare KS.CFG kickstart file to make the new ISO in '{{ staging_directory }}/baremetal/{{ inventory_hostname }}/KS.CFG'
       become: yes
       file:
-        path: "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/etc/vmware/weasel/ks.cfg"
+        path: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/KS.CFG"
         state: file
         mode: "0755"
-      delegate_to: localhost
-
-    - name: Creating the ks.tgz kickstart file to make the new ISO
-      become: yes
-      shell: |
-        cd {{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}
-        tar czvf ks.tgz *
-      delegate_to: localhost
-
-    - name: Copying new ks.tgz to "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/"
-      become: yes
-      copy:
-        src: "{{ staging_directory }}/baremetal/temp/{{ inventory_hostname }}/ks.tgz"
-        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/"
-        mode: 0755
       delegate_to: localhost
 
     # Creation of the new ESXi ISO image with unattended installation
@@ -315,13 +276,27 @@
         timeout: 60
       delegate_to: localhost
 
+    # Backup kickstart file for troubleshooting purposes
+
+    - name: Create a kickstart backup directory if it does not exist
+      become: yes
+      file:
+        path: "{{ staging_directory }}/kickstarts_backup/ESXi"
+        state: directory
+      delegate_to: localhost
+
+    - name: Create a backup of the kickstart file named '{{ inventory_hostname }}_ks.cfg' in '{{ staging_directory }}/kickstarts_backup/ESXi' folder
+      become: yes
+      shell: |
+        cp -f {{ staging_directory }}/baremetal/{{ inventory_hostname }}/KS.CFG {{ staging_directory }}/kickstarts_backup/ESXi/{{ inventory_hostname }}_ks.cfg
+      delegate_to: localhost
+
     # Cleaning up staging files
 
     - name: Deleting all related files from staging location and nginx web server folder
       become: yes
       shell: |
         rm -rf {{ inventory_hostname }}
-        rm -rf temp/{{ inventory_hostname }}
         rm -f /usr/share/nginx/html/isos/{{ inventory_hostname }}.iso
         rm -rf /mnt/{{ inventory_hostname }}
       args:

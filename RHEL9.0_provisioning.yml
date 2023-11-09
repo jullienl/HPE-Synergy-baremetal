@@ -1,10 +1,11 @@
 ---
 # Performing automated Red Hat Enterprise Linux 9.0 Boot from SAN installation on Synergy Module(s) using a kickstart and a HPE OneView Server Profile Template
 #
-# Commands that can be used to run this playbook:
-#    $ ansible-playbook -i hosts RHEL9.0_provisioning.yml -K
-#    (or --ask-become-pass)
-
+# Command that can be used to run this playbook:
+#    $ ansible-playbook -i hosts RHEL9.0_provisioning.yml --ask-vault-password --ask-become-pass
+#    or
+#    $ ansible-playbook -i hosts RHEL9.0_provisioning.yml --vault-password-file ~/secrets/vault_pass.txt  --become-password-file ~/secrets/become_pass.txt 
+#>
 
 # Adding a DNS record in the defined DNS server for the server that will be provisioned 
 
@@ -274,6 +275,21 @@
     - debug:
         msg: "{{ inventory_hostname }} installation took {{ (boot_wait_time.elapsed / 60) | round | int }} minutes"
 
+    # Backup kickstart file for troubleshooting purposes
+
+    - name: Create a kickstart backup directory if it does not exist
+      become: yes
+      file:
+        path: "{{ staging_directory }}/kickstarts_backup/RHEL"
+        state: directory
+      delegate_to: localhost
+
+    - name: Create a backup of the kickstart file named '{{ inventory_hostname }}_ks.cfg' in '{{ staging_directory }}/kickstarts_backup/RHEL' folder
+      become: yes
+      shell: |
+        cp -f {{ staging_directory }}/baremetal/{{ inventory_hostname }}/ks.cfg {{ staging_directory }}/kickstarts_backup/RHEL/{{ inventory_hostname }}_ks.cfg
+      delegate_to: localhost
+      
     # Cleaning up staging files
 
     - name: Deleting all temporary files in the stagging location on "{{lookup("pipe","hostname")}}"

@@ -2,8 +2,10 @@
 # Performing automated Windows Server 2022 Boot from SAN installation on Gen10 Synergy Module(s) using an unattended file and a HPE OneView Server Profile Template
 #
 # Command that can be used to run this playbook:
-#    $ ansible-playbook -i hosts WIN_provisioning.yml -K
-#    (or --ask-become-pass)
+#    $ ansible-playbook -i hosts WIN_provisioning.yml --ask-vault-password --ask-become-pass
+#    or
+#    $ ansible-playbook -i hosts WIN_provisioning.yml --vault-password-file ~/secrets/vault_pass.txt  --become-password-file ~/secrets/become_pass.txt 
+#>
 
 
 - name: Performing an unattended Windows Server 2022 Boot from SAN installation on a Gen10 Synergy Module using a OneView Server Profile Template
