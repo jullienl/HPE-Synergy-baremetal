@@ -12,16 +12,16 @@
 - name: Creating a DNS record for the bare metal RHEL server
   hosts: RHEL
   gather_facts: no
+  vars:
+    ansible_forks: 5
   vars_files:
-    # - vars/RHEL9.0_provisioning.yml
-    - vars/windows_dns.yml
-    # - vars/encrypted_credentials.yml
+    - vars/Windows_DNS_vars_encrypted.yml
   tasks:
-    - name: Adding "{{ inventory_hostname }}" with "{{ host_management_ip }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
+    - name: Adding "{{ inventory_hostname }}" with "{{ os_ip_address }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
       community.windows.win_dns_record:
         name: "{{ inventory_hostname }}"
         type: "A"
-        value: "{{ host_management_ip }}"
+        value: "{{ os_ip_address }}"
         zone: "{{ domain }}"
         state: present
       delegate_to: "{{ dns_server }}"
@@ -32,18 +32,17 @@
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/RHEL9.0_provisioning.yml
-    - vars/iLOvars.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
-    # - vars/encrypted_credentials.yml
+    - vars/RHEL9.0_vars.yml
+    - vars/iLO_vars_encrypted.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
   vars:
     # HPE Synergy Composer configuration
     config: "{{ playbook_dir }}/oneview_config.json"
-
     # ansible_python_interpreter: python3
     ansible_host_key_checking: false
     validate_certs: false
     ssh_known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}"
     ansible_ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+    ansible_forks: 5
 
   tasks:
 
@@ -264,10 +263,10 @@
         image: 'http://{{ lookup("pipe","hostname") }}/isos/{{ inventory_hostname }}.iso'
       delegate_to: localhost
 
-    - name: Waiting for RHEL installation to complete - Waiting for "{{ host_management_ip }}" to respond...
+    - name: Waiting for RHEL installation to complete - Waiting for "{{ os_ip_address }}" to respond...
       wait_for:
         timeout: 2000
-        host: "{{ host_management_ip }}"
+        host: "{{ os_ip_address }}"
         port: 22
       delegate_to: localhost
       register: boot_wait_time
@@ -431,4 +430,4 @@
           - "{{ inventory_hostname }}.{{domain}} Installation completed !"
           - "OS is configured and running the HPE OS drivers and firmware update." 
           - "Check Server Profile activity of {{ inventory_hostname }} in HPE OneView."
-          - "To connect to the new host from Ansible control node, use: ssh root@{{ host_management_ip }}"
+          - "To connect to the new host from Ansible control node, use: ssh root@{{ os_ip_address }}"

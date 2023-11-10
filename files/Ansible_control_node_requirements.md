@@ -37,7 +37,6 @@ sudo dnf install isomd5sum
 
 ## Ansible installation and requirements
 ```
-
 sudo dnf install python3-pip
 pip3 install setuptools-rust wheel
 pip3 install ansible-core
@@ -90,11 +89,14 @@ sudo firewall-cmd --reload
 ``` 
 
 ## Enabling ngnix directory browsing
+```
 sudo sed -i '0,/server {/s//&\n        autoindex on;/' /etc/nginx/nginx.conf
 sudo systemctl restart nginx
+```
+
 
 ## unzip
+unzip is used to extract HPE Package to get product id information.
 ```
-unzip used to extract HPE Package to get product id information.
 sudo dnf install unzip #(should be already installed)
 ```

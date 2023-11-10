@@ -1,0 +1,8 @@
+---
+
+# VMware vCenter credentials
+vcenter_username: "administrator@vsphere.local"
+vcenter_password: "xxxxxxxxxxxxxxxx"
+
+# License to be assigned to the ESXi host
+esxi_license: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

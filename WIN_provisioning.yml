@@ -14,18 +14,17 @@
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/WIN_provisioning.yml
-    - vars/iLOvars.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
+    - vars/WIN_vars_encrypted.yml
+    - vars/iLO_vars_encrypted.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
     #- vars/encrypted_credentials.yml
   vars:
     # HPE Synergy Composer configuration
     config: "{{ playbook_dir }}/oneview_config.json"
-
     inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
-
     # ansible_python_interpreter: python3
     ansible_host_key_checking: false
     validate_certs: false
+    ansible_forks: 5
 
   tasks:
     
@@ -34,7 +33,7 @@
         path: "{{ src_iso_directory }}/{{ src_iso_file }}"
       register: ISO_Present
       delegate_to: localhost
-
+            
     - name: Creating the directory "{{ src_iso_directory }}" to host the ISO file on "{{ lookup("pipe","hostname") }}"
       become: yes
       file:
@@ -163,7 +162,7 @@
           $mac2="{{ mac2 }}"
           $net2=get-netadapter | where MacAddress -eq $mac2.replace(":","-") | select name
           New-NetLbfoTeam -Name mgmt_nw_team -TeamMembers $net1.name,$net2.name -confirm:$false
-          netsh interface ip set address mgmt_nw_team static {{host_management_ip}} {{netmask}} {{gateway}}
+          netsh interface ip set address mgmt_nw_team static {{os_ip_address}} {{netmask}} {{gateway}}
           netsh interface ip add dns mgmt_nw_team "{{nameserver1}}"
           netsh interface ip add dns mgmt_nw_team "{{nameserver2}}" index=2
           $team_index = Get-NetAdapter -Name mgmt_nw_team | % ifindex
@@ -242,10 +241,10 @@
         image: 'http://{{ lookup("pipe","hostname") }}/isos/{{ inventory_hostname }}.iso'
       delegate_to: localhost
 
-    - name: Waiting for Windows Server installation to complete - Waiting for "{{ host_management_ip }}" to respond...
+    - name: Waiting for Windows Server installation to complete - Waiting for "{{ os_ip_address }}" to respond...
       wait_for:
         timeout: 2000
-        host: "{{ host_management_ip }}"
+        host: "{{ os_ip_address }}"
         port: 3389
       register: boot_wait_time
       delegate_to: localhost
@@ -288,20 +287,21 @@
 - name: Creating a DNS record for the bare metal Windows Server
   hosts: Windows
   gather_facts: no
+  vars:
+    ansible_forks: 5
   vars_files:
-    - vars/windows_dns.yml
-    # - vars/encrypted_credentials.yml
+    - vars/Windows_DNS_vars_encrypted.yml
   tasks:
-    - name: Adding {{ inventory_hostname }} with {{ host_management_ip }} on {{ dns_server }} in {{ domain }} DNS domain
+    - name: Adding {{ inventory_hostname }} with {{ os_ip_address }} on {{ dns_server }} in {{ domain }} DNS domain
       community.windows.win_dns_record:
         name: "{{ inventory_hostname }}"
         type: "A"
-        value: "{{ host_management_ip }}"
+        value: "{{ os_ip_address }}"
         zone: "{{ domain }}"
         state: present
       delegate_to: "{{ dns_server }}"
 
-# Installing iSUT and AMS on the server for online installation of HPE drivers for Windows Server
+# Installing iSUT and AMS on the server through WinRM for online installation of HPE drivers for Windows Server
 
 - name: Installing HPE iSUT and HPE AMS on the server for online installation of HPE drivers for Windows Server
   hosts: Windows
@@ -309,11 +309,12 @@
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/WIN_provisioning.yml
-    # - vars/encrypted_credentials.yml
+    - vars/WIN_vars_encrypted.yml
+    - vars/WinRM_vars_encrypted.yml
   vars:
     # HPE Synergy Composer configuration
     config: "{{ playbook_dir }}/oneview_config.json"
+    ansible_forks: 5
 
   tasks:
     - name: Copying HPE iSUT package file to {{ inventory_hostname }}
@@ -368,6 +369,8 @@
         version: "{{ SSP_version }}"
         name: "HPE Synergy Service Pack"
       delegate_to: localhost
+      vars:
+        ansible_connection: local
 
     # - debug: var=firmware_drivers
 
@@ -389,8 +392,10 @@
             manageFirmware: true
             firmwareBaselineUri: "{{ firmwareBaselineUri }}"
             firmwareInstallType: "FirmwareAndOSDrivers"
-      delegate_to: localhost
       register: result
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
 
     - debug: msg="{{ result.msg }}"
 
@@ -420,6 +425,8 @@
         or 
         (server_hardwares.serverSettings.firmwareAndDriversInstallState.installState == "InstalledPendingReboot")
       delegate_to: localhost
+      vars:
+        ansible_connection: local
 
     # Host reboots for the HPE drivers/firmware activation are managed by HPE OneView
 

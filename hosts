@@ -5,19 +5,17 @@ localhost ansible_python_interpreter=/usr/bin/python3 ansible_connection=local
 ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 
 [ESX]
-ESX-1 host_management_ip=192.168.3.171 
-#ESX-2 host_management_ip=192.168.3.172 
+ESX-1 os_ip_address=192.168.3.171 
+ESX-2 os_ip_address=192.168.3.172 
 
-[ESX:vars]
-ansible_python_interpreter=python3  
 
 [RHEL]
-RHEL-1 host_management_ip=192.168.3.173 
-#RHEL-2 host_management_ip=192.168.3.174
+RHEL-1 os_ip_address=192.168.3.173 
+RHEL-2 os_ip_address=192.168.3.174
 
 [Windows]
-WIN-1 host_management_ip=192.168.3.175
-#WIN-2 host_management_ip=192.168.3.176
+WIN-1 os_ip_address=192.168.3.175
+WIN-2 os_ip_address=192.168.3.176
 
 
 

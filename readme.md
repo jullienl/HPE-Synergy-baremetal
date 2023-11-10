@@ -1,72 +1,71 @@
-# HPE Synergy bare metal provisioning
+# Automatic bare metal provisioning with HPE Synergy and Ansible
+ 
+Automatic bare metal provisioning refers to the process of automatically deploying and configuring physical servers or bare metal machines using automated tools such as Ansible in this project.
 
-Ansible project for automatic provisioning of HPE Synergy bare metal servers, but note that this project can also be used for rackmount servers without major modifications.
+The goal is to enable quick and easy provisioning of servers managed by HPE OneView and enable the long list of benefits of automatic bare metal provisioning.
 
-Operating system provisioning (ESXi, RHEL and Windows server) is performed using kickstart/unattend files, automatically generated ISO files and HPE OneView server profile templates.
+In this project, automating the provisioning of operating systems on bare metal servers is made simple and accessible to anyone with basic knowledge of Ansible, HPE OneView, and kickstart techniques. While it is generally a complex process that requires a wide range of skills, this project simplifies it with the use of auto-customized kickstarts, auto-generated ISO files and by exploiting the very interesting functions of HPE OneView server profile templates.
 
-## Use case
+One of the benefit of Ansible is parallel execution that allows the simultaneous execution of tasks on multiple hosts. In other words, with one playbook execution, you can provision a customized OS on multiple servers (5 by default). This can significantly speed up the execution time of playbooks, especially when managing large environments with a large number of hosts. Parallel execution enables faster infrastructure provisioning, configuration management, and application deployment across multiple hosts, improving overall efficiency and reducing the time required for administrative tasks.
 
-The different playbooks can be used to provision 3 types of operating systems:
 
-- Red Hat Enterprise Linux and equivalent
-- VMware ESXi 6.7 and 7
+## Main benefits
+
+Here are some benefits of automatic bare metal provisioning:
+
+- **Time-saving**: Automating the provisioning process eliminates the need for manual, repetitive tasks involved in setting up and configuring servers. This saves considerable time and effort, enabling teams to focus on more strategic and value-added activities.
+
+- **Consistency**: With automatic bare metal provisioning, server configurations are standardized and consistent across the infrastructure. This reduces the chance of human error and ensures that all servers adhere to a predefined configuration, leading to improved stability and reliability.
+
+- **Efficiency**: Automated provisioning allows for faster and more efficient deployment of bare metal machines. It streamlines the process by eliminating manual intervention and reducing the potential for errors. This results in quicker turnaround times, enabling teams to respond rapidly to changing business needs.
+
+- **Scalability**: Automatic bare metal provisioning provides the ability to scale up or down the infrastructure as required. By automating the deployment of new servers, organizations can easily add or remove resources based on demand, ensuring optimal performance and resource utilization.
+
+- **Standardization**: Automated provisioning enables organizations to enforce standardized practices and configurations across different environments. This promotes consistency and simplifies troubleshooting and maintenance, as all servers are provisioned using the same set of tools and configurations.
+
+- **Reduced costs**: By automating the provisioning process, organizations can reduce operational costs associated with manual provisioning. It eliminates the need for manual labor, minimizes human error, and reduces the time required for server setup, resulting in cost savings over time.
+
+- **Integration with DevOps practices**: Automated bare metal provisioning integrates well with other DevOps practices, such as infrastructure as code (IaC) and configuration management. It enables organizations to manage infrastructure as code, version control server configurations, and easily replicate environments, thus facilitating collaboration and improving overall agility.
+
+## Supported operating systems
+
+For automating the provisioning of operating systems, three main playbooks are available, one for each type of operating system:
+- VMware ESXi 7 and 8
+- Red Hat Enterprise Linux and equivalent 
 - Windows Server 2022 and equivalent
 
-One playbook can provision one OS type on one or multiple servers as defined by the Ansible inventory file.
-
-## Built and tested with
-
-The resources in this repository have been tested with Ansible control node running on a Rocky Linux 9.2 VM with:
-  - Ansible core 2.15.4
-  - Python 3.9.16
-  - HPE OneView Python SDK 8.5.1
-  - Ansible Collection for HPE OneView 8.5.1
-  - Community.general 3.8.0
-  - Community.windows 1.7.0
-  - Community.vmware 1.15.0
-  - HPE OneView 8.50
-  - Synergy 480 Gen10/Gen10 Plus 
-  - HPE Synergy Service Pack 2022.11.01
-
-The GitHub CentOS8.2 branch provides the resources that were tested in 2021 on a CentOS 8.2 VM with:
-  - Ansible core 2.9.25
-  - Python 3.6.8
-  - HPE OneView Python SDK 6.30
-  - Ansible Collection for HPE OneView 6.30
-  - Community.general 3.8.0
-  - Community.windows 1.7.0
-  - Community.vmware 1.15.0
-  - HPE OneView 6.30
-  - Synergy 480 Gen10 
-  - HPE Synergy Service Pack 2021-05.03
-
-The provisioned OS tested successfully are:
-  - RHEL-8.3.0-20201009.2-x86_64-dvd1.iso  
-  - rhel-baseos-9.0-x86_64-dvd.iso 
-     > Note: Based on my experience, I encountered difficulties with the RHEL 9.x minimum image, specifically the rhel-baseos-9.0-x86_64-boot.iso (766MB) file. During the kickstart installation, it appeared to hang at the "Checking storage configuration" step. Therefore, I would suggest avoiding the use of RHEL 9.x minimum images due to this issue.
-  - VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso
-  - VMware-ESXi-7.0.3-21930508-HPE-703.0.0.11.3.5.9-Aug2023-Synergy.iso
-  - en-us_windows_server_version_2022_updated_october_2021_x64_dvd_b6e25591.iso
-
+Note that UEFI secure boot is not supported, but can be enabled at a later date once the operating system has been installed.
 
 ## Pre-requisites
 
+- A web server with ISO images of the various operating systems to be provisioned.
 - HPE Synergy frame configured and at least one unused Synergy 480 Gen10/Gen10 Plus compute module.
 - OneView Server Profile Templates defined for each desired OS with a local storage boot drive or a boot from SAN storage volume (see below for configuration).
 - OneView server profile templates must include the creation of an iLO local account. This account is required by the [community.general](https://galaxy.ansible.com/community/general) collection to manage an HPE iLO interface.
-- Ansible control node (see below for configuration) with a hard disk large enough to host a copy of the ISO files, and temporarily the extraction of ISO(s) and generated ISO(s)  (500GB+ is recommended). 
+- The `Hosts` inventory file needs to be updated. Each server should be listed in the corresponding inventory group along with the IP address that should be assigned to the operating system.
+
+- An Ansible control node with a storage volume large enough to host a copy of the ISO files, and the temporary extraction of an ISO and the new generated ISO with the customized kickstart for each server being provisioned 
+
+   > **Note**: 1TB+ is recommended if you plan to provision several servers in parallel. 
+
 - Windows DNS server configured to be managed by Ansible (see below for configuration).
 
 ## Ansible control node information
 
 - It runs Ansible
 - It can be a physical server or a Virtual Machine
-- It is used as the staging destination for the preparation of the ISO file(s)
-- It runs `nginx` web services to host the created and customized ISO files from which the bare metal servers will boot from using iLO virtual media.
+- It is used as the temporary destination for the preparation of ISO files.
+- It runs `nginx` web services to host the created ISO files from which the bare metal servers will boot from using iLO virtual media.
+- It must have enough disk space to host all ISOs and generated ISOs.
+- It must be at the right time and date.
 
 ## Configure Ansible control node
 
 To configure the Ansible control node, see [Ansible_control_node_requirements.md](https://github.com/jullienl/HPE-Synergy-baremetal/blob/master/files/Ansible_control_node_requirements.md) in `/files`
+
+By default, Ansible executes tasks on a maximum of 5 hosts in parallel. If you want to increase the parallelism and have the provisioning tasks executed on more hosts simultaneously, you can modify this value directly in the playbooks using the `ansible_forks` variable.
+
+  > It's important to note that while parallel execution can significantly improve performance, it also increases resource consumption on the Ansible control machine. Therefore, it's recommended to test and tune the value of `ansible_forks` based on your specific environment to find the optimal balance between performance and resource usage.
 
 ## Configure Windows DNS Server
 
@@ -77,17 +76,19 @@ The Windows DNS Server to be managed by Ansible should meet below requirements:
 
 To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https://raw.githubusercontent.com/jullienl/HPE-Synergy-baremetal/master/files/ConfigureRemotingForAnsible.ps1) on the Windows Server to set up the basics. 
 
-The purpose of this script is solely for training and development, and it is strongly advised against using it in a production environment since it enables both HTTP and HTTPS listeners with a self-signed certificate and enables Basic authentication that can be inherently insecure.
+> **Note**: The purpose of this script is solely for training and development, and it is strongly advised against using it in a production environment since it enables both HTTP and HTTPS listeners with a self-signed certificate and enables Basic authentication that can be inherently insecure.
 
-To learn more about **Setting up Windows host**, see https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup
+To learn more about **Setting up Windows host**, see [https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup](https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup)
 
-## Preparation
+## Preparation to run the playbooks
 
-1. Update all variables located in `/vars` and in `/group_vars/Windows.yml` for the Windows host provisioning
+1. Clone or download this repository on your Ansible control node   
 
-2. Copy the desired OS ISO versions on a web server defined by `{{ src_iso_url }}` and `{{ src_iso_file }}` variables.
+2. Update all variables located in `/vars` and for the Windows host provisioning, the variable in `/group_vars/Windows.yml` 
 
-3. Create an HPE Oneview Server Profile Template for each OS type.
+3. Copy the operating system ISOs to a web server defined by the variables `src_iso_url` and `src_iso_file` 
+
+4. Create an HPE Oneview Server Profile Template for each OS type.
 
    The following playbooks can be used to create the appropriate server profile templates:
 
@@ -122,12 +123,85 @@ To learn more about **Setting up Windows host**, see https://docs.ansible.com/an
 
      > **Note**: For ESXi, there is no need to install HPE drivers because HPE ESXi images include all the drivers and management software required to run ESXi on HPE servers, therefore there is no need to define a firmware baseline.
 
-## How to protect sensitive credentials
+5. Secure your VMware vCenter credentials using:   
+  `ansible-vault create vars/VMware_vCenter_vars_encrypted.yml`   
+  And copy/paste the content of `/vars/VMware_vCenter_vars_clear.yml` example in the editor using your own information.
 
-Vault files can be used to secure all passwords. To learn more, see https://docs.ansible.com/ansible/latest/user_guide/vault.html
+6. Secure your Windows credentials, using:   
+  `ansible-vault create vars/WIN_vars_encrypted.yml`   
+  And copy/paste the content of `/vars/WIN_vars_clear.yml` example in the editor using your own information.
 
-- To encrypt a var file: `ansible-vault create --vault-id @prompt vars/encrypted_credentials.yml`
-- To run a playbook with encrypted credentials: `ansible-playbook <playbook.yml> --ask-vault-pass`
+7. Secure your WinRM variables for the Windows hosts, using:   
+  `ansible-vault create vars/WinRM_vars_encrypted.yml`   
+  And copy/paste the content of `/vars/WinRM_vars_clear.yml` example in the editor using your own information.
+
+8. Secure your Windows DNS credentials, using:   
+  `ansible-vault create vars/Windows_DNS_vars_encrypted.yml`   
+  And copy/paste the content of `/vars/Windows_DNS_vars_clear.yml` example in the editor using your own information.
+
+9. Secure your iLO credentials, using:   
+  `ansible-vault create vars/iLO_vars_encrypted.yml`   
+  And copy/paste the content of `/vars/iLO_vars_clear.yml` example in the editor using your own information.
+
+10. Update the `hosts` Ansible inventory file with the list of servers to provision. 
+
+   Each server should be listed using a hostname in the corresponding inventory group along with the IP address that should be assigned to the operating system.
+   
+   You can use the `hosts` file example:
+   ```
+   [ESX]
+   ESX-1 os_ip_address=192.168.3.171 
+   ESX-2 os_ip_address=192.168.3.172 
+
+   [RHEL]
+   RHEL-1 os_ip_address=192.168.3.173 
+   RHEL-2 os_ip_address=192.168.3.174
+
+   [Windows]
+   WIN-1 os_ip_address=192.168.3.175
+   WIN-2 os_ip_address=192.168.3.176
+   ```
+
+    > **Note**: Groups are defined by [...] like [ESX] in the example above. This group defines the list of ESX hosts that will be provisioned using the `ESXi_provisioning.yml` playbook. All hosts defined in this group will be provisioned in parallel by Ansible when the playbook is executed.
+
+11. To provision all hosts present in the corresponding inventory group, run the following command to have Ansible prompt you for the vault and sudo passwords:    
+   `ansible-playbook <ESXi|RHEL|WIN>_provisioning.yml> -i hosts --ask-vault-pass --ask-become-pass`
+  
+   For example, running `ansible-playbook ESXi_provisioning.yml` will provision all servers listed above in the [ESX] inventory group, i.e. ESX-1, and ESX-2.
+
+## Built and tested with
+
+The resources in this repository have been tested with Ansible control node running on a Rocky Linux 9.2 VM with:
+  - Ansible core 2.15.4
+  - Python 3.9.16
+  - HPE OneView Python SDK 8.5.1
+  - Ansible Collection for HPE OneView 8.5.1
+  - Community.general 3.8.0
+  - Community.windows 1.7.0
+  - Community.vmware 1.15.0
+  - HPE OneView 8.50
+  - Synergy 480 Gen10/Gen10 Plus 
+  - HPE Synergy Service Pack 2022.11.01
+
+The GitHub CentOS8.2 branch provides the resources that were tested in 2021 on a CentOS 8.2 VM with:
+  - Ansible core 2.9.25
+  - Python 3.6.8
+  - HPE OneView Python SDK 6.30
+  - Ansible Collection for HPE OneView 6.30
+  - Community.general 3.8.0
+  - Community.windows 1.7.0
+  - Community.vmware 1.15.0
+  - HPE OneView 6.30
+  - Synergy 480 Gen10 
+  - HPE Synergy Service Pack 2021-05.03
+
+The provisioned OS tested successfully are:
+  - RHEL-8.3.0-20201009.2-x86_64-dvd1.iso  
+  - rhel-baseos-9.0-x86_64-dvd.iso 
+     > Note: Based on my experience, I encountered difficulties with the RHEL 9.x minimum image, specifically the rhel-baseos-9.0-x86_64-boot.iso (766MB) file. During the kickstart installation, it appeared to hang at the "Checking storage configuration" step. Therefore, I would suggest avoiding the use of RHEL 9.x minimum images due to this issue.
+  - VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso
+  - VMware-ESXi-7.0.3-21930508-HPE-703.0.0.11.3.5.9-Aug2023-Synergy.iso
+  - en-us_windows_server_version_2022_updated_october_2021_x64_dvd_b6e25591.iso
 
 
 ## Description of the playbooks

@@ -1,0 +1,71 @@
+---
+# Host information (name and IP) is provided by the Ansible inventory 'hosts' file:
+# RHEL-1 os_ip_address=192.168.3.171 
+# RHEL-2 os_ip_address=192.168.3.172 
+
+
+#---------------------- Network settings -------------------------------------------------------------------------------------
+
+gateway: "192.168.1.1"
+nameserver: "192.168.2.1,192.168.2.3"
+netmask: "255.255.252.0"
+domain: "lj.lab"
+
+#---------------------- Server settings --------------------------------------------------------------------------------------
+
+# Name of the HPE OneView Server Profile Template that we will use to generate the HPE OneView Server Profile
+server_template: "RHEL_BFS_EG_100G"
+
+#------------------------ kickstart file customization ----------------------------------------------------------------------
+
+# Password for root
+# To create an encrypted passord, you can use the following command:
+#    python3 -c 'import crypt,getpass;pw=getpass.getpass();print(crypt.crypt(pw) if (pw==getpass.getpass("Confirm: ")) else exit())'
+encrypted_root_password: "$6$jsCkM/q1rcozIdi8$b1uUXnQmzv59.CKN01w2wdfEGnigRdfK2T.EpJznpyKDXR4uYrajcUZQHrkSrlt1Hwviyc2AWqR409f.i.I741"
+
+# System timezone
+# America/New York, etc.
+# To get the list of supported timezone values: timedatectl list-timezones
+timezone: "Europe/Paris"
+ntp_server: "time.cloudflare.com"
+
+# Keyboard layouts: us, fr, de, es, etc.
+# To get the list of supported keyboard values: ls /usr/lib/kbd/keymaps/xkb/ | sed 's/.\{7\}$//'
+keyboard: "us"
+# System language: fr_FR, en_US, en_GB, de_DE, es_ES, etc.
+# To get the list of supported language values: locale -a | grep _
+language: "en_US"
+
+
+#------------------------ ISO settings -------------------------------------------------------------------------------------
+
+# OS vendor ISO file information
+src_iso_url: "https://liogw.lj.lab/deployment/rhel90-x64/"
+src_iso_file: "rhel-baseos-9.0-x86_64-dvd.iso"
+# src_iso_file: "rhel-baseos-9.0-x86_64-boot.iso"
+
+# Directory on the Ansible control node where the source ISO will be copied:
+src_iso_directory: "{{ lookup('env','HOME') }}/ISOs/rhelisosrc"
+
+# Directory on the Ansible control node to stage all files to build and generate the new ISO image with the custom kickstart:
+staging_directory: "{{ lookup('env','HOME') }}/staging"
+
+# Folder located in <Ansible_project_dir>/files to store the kickstart and HPE AMS and SUT files
+# Using the template: RHEL_<version>. <version> can be found in .discinfo file in the root of src_iso_file iso
+rhel_version: "RHEL_9.0.0"
+
+# Version of the HPE Synergy Service Pack (SSP) that will be used to update the HPE drivers and firmware once the OS is installed
+SSP_version: "SY-2023.05.01"
+
+# Name of the kickstart file available in files/RHEL_<version>
+kickstart: "ks-rhel9.0.sh"
+
+# Name of the HPE Packages founf in <Ansible_project_dir>/files
+AMS_package: "amsd-3.3.0-1773.7.rhel9.x86_64.rpm"
+iSUT_package: "sut-4.3.0-3.linux.x86_64.rpm"
+
+# RHEL repositories to be defined in kickstart to allow installation of packages not available in ISO
+
+RHEL_baseos: "https://liogw.lj.lab/deployment/rhel90-x64/BaseOS"
+RHEL_appstream: "https://liogw.lj.lab/deployment/rhel90-x64/appstream"
+

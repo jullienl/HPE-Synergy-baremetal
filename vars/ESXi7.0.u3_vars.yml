@@ -1,0 +1,58 @@
+---
+# Host information (name and IP) is provided by the Ansible inventory 'hosts' file:
+# ESX-1 os_ip_address=192.168.3.171 
+# ESX-2 os_ip_address=192.168.3.172 
+
+
+#---------------------- Network settings -------------------------------------------------------------------------------------
+
+gateway: "192.168.1.1"
+nameserver: "192.168.2.1,192.168.2.3"
+netmask: "255.255.252.0"
+domain: "lj.lab"
+
+
+#---------------------- VMware vCenter settings ------------------------------------------------------------------------------
+
+vcenter_hostname: "vcenter.lj.lab"
+cluster_name: "Synergy-Cluster-01" # created if not present
+datacenter_name: "Mougins"
+vcenter_switch_name: "DSwitch-VC100G"
+dportgroup_name: "DPortGroup-VC100G-VLAN10"
+
+
+#------------------------ kickstart file customization ----------------------------------------------------------------------
+
+# Password for root
+# To create an encrypted passord, you can use the following command:
+#    python3 -c 'import crypt,getpass;pw=getpass.getpass();print(crypt.crypt(pw) if (pw==getpass.getpass("Confirm: ")) else exit())'
+encrypted_root_password: "$6$jsCkM/q1rcozIdi8$b1uUXnQmzv59.CKN01w2wdfEGnigRdfK2T.EpJznpyKDXR4uYrajcUZQHrkSrlt1Hwviyc2AWqR409f.i.I741"
+
+
+#---------------------- Server settings --------------------------------------------------------------------------------------
+
+# Name of the HPE OneView Server Profile Template that we will use to generate the HPE OneView Server Profile
+server_template: "ESXi_BFS_EG_100G"
+
+# Name of the network set attached to the Server Profile connections that will be used to connect the Virtual Machines (= VM Production Network Set)
+VM_network_set: "Production_network_set"
+
+
+#------------------------ ISO settings -------------------------------------------------------------------------------------
+
+# OS vendor ISO file information
+src_iso_url: "https://liogw.lj.lab/deployment/esxi70u3/"
+src_iso_file: "VMware-ESXi-7.0.3-21930508-HPE-703.0.0.11.3.5.9-Aug2023-Synergy.iso"
+
+# Directory on the Ansible control node where the source ISO will be copied:
+src_iso_directory: "{{ lookup('env','HOME') }}/ISOs/esxiisosrc"
+
+# Directory on the Ansible control node to stage all files to build and generate the new ISO image with the custom kickstart:
+staging_directory: "{{ lookup('env','HOME') }}/staging"
+
+# Folder located in <Ansible_project_dir>/files to store the boot.cfg file
+# Use the template name: ESXi_<build>. <build> is found in boot.cfg in the root of src_iso_file iso
+esxi_build: "ESXi_21930508"
+
+# Name of the kickstart file available in files/ESXi_<build>
+kickstart: "ks-esxi7.0u3.sh"

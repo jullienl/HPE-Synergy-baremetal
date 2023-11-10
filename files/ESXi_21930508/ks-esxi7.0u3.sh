@@ -1,7 +1,10 @@
 vmaccepteula
-rootpw  {{root_password}}
+
+rootpw --iscrypted {{encrypted_root_password}}
+
 %include /tmp/DiskConfig
-network --device=vmnic0 --bootproto=static --addvmportgroup=1 --ip={{host_management_ip}} --netmask={{netmask}} --gateway={{gateway}} --nameserver={{nameserver}} --hostname={{inventory_hostname}}   
+
+network --device=vmnic0 --bootproto=static --addvmportgroup=1 --ip={{os_ip_address}} --netmask={{netmask}} --gateway={{gateway}} --nameserver={{nameserver}} --hostname={{inventory_hostname}}   
 reboot   
 
 

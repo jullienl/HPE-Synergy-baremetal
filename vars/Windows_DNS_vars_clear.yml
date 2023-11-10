@@ -8,8 +8,8 @@ domain: "lj.lab"
 dns_server: "dc.lj.lab"
 
 # Windows DNS Server credentials
-ansible_user: administrator@lj.lab
-ansible_password: xxxxxxxxxxxxxxx
+ansible_user: xxxxxxxxx@lj.lab
+ansible_password: xxxxxxxxxx
 
 ansible_connection: winrm
 ansible_winrm_transport: ntlm

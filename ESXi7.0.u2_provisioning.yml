@@ -3,8 +3,6 @@
 #
 # Command that can be used to run this playbook:
 #    $ ansible-playbook -i hosts ESXi7.0.u2_provisioning.yml --ask-vault-password --ask-become-pass
-#    or
-#    $ ansible-playbook -i hosts ESXi7.0.u2_provisioning.yml --vault-password-file ~/secrets/vault_pass.txt  --become-password-file ~/secrets/become_pass.txt 
 #>
 
 # Adding a DNS record for the server that will be provisioned in the defined DNS server
@@ -12,16 +10,16 @@
 - name: Creating a DNS record for the bare metal ESXi server
   hosts: ESX
   gather_facts: no
+  vars:
+  ansible_forks: 5
   vars_files:
-    # - vars/ESXi7.0.u2_provisioning.yml
-    - vars/windows_dns.yml
-    # - vars/encrypted_credentials.yml
+    - vars/Windows_DNS_vars_encrypted.yml
   tasks:
-    - name: Adding "{{ inventory_hostname }}" with "{{ host_management_ip }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
+    - name: Adding "{{ inventory_hostname }}" with "{{ os_ip_address }}" on "{{ dns_server }}" in "{{ domain }}" DNS domain
       community.windows.win_dns_record:
         name: "{{ inventory_hostname }}"
         type: "A"
-        value: "{{ host_management_ip }}"
+        value: "{{ os_ip_address }}"
         zone: "{{ domain }}"
         state: present
       delegate_to: "{{ dns_server }}"
@@ -32,21 +30,19 @@
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/ESXi7.0.u2_provisioning.yml
-    - vars/vcentervars.yml
-    - vars/iLOvars.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
-    # - vars/encrypted_credentials.yml
+    - vars/ESXi7.0.u2_vars.yml
+    - vars/VMware_vCenter_vars_encrypted.yml
+    - vars/iLO_vars_encrypted.yml # Define the iLO local account created by the server profile template. This account is required by the community.general.hpilo_boot module to manage the server iLO
   vars:
     # HPE Synergy Composer configuration
     config: "{{ playbook_dir }}/oneview_config.json"
-
     inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
-
     # ansible_python_interpreter: /usr/bin/python3
     ansible_host_key_checking: false
     validate_certs: false
     ssh_known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}"
     ansible_ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+    ansible_forks: 5
 
   tasks:
 
@@ -260,10 +256,10 @@
         image: 'http://{{ lookup("pipe","hostname") }}/isos/{{ inventory_hostname }}.iso'
       delegate_to: localhost
 
-    - name: Waiting for ESXi installation to complete - waiting for "{{ host_management_ip }}" to respond...
+    - name: Waiting for ESXi installation to complete - waiting for "{{ os_ip_address }}" to respond...
       wait_for:
         timeout: 2000
-        host: "{{ host_management_ip }}"
+        host: "{{ os_ip_address }}"
         port: 80
       delegate_to: localhost
       register: boot_wait_time

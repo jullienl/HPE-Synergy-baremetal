@@ -12,9 +12,9 @@ cdrom
 
 
 # NETWORK, SELINUX, FIREWALL
-network --bootproto=static --device=team0 --gateway={{gateway}} --ip={{host_management_ip}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --teamslaves="ens3f0,ens3f1" --teamconfig="{\"runner\": {\"name\": \"activebackup\"}}"
+network --bootproto=static --device=team0 --gateway={{gateway}} --ip={{os_ip_address}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --teamslaves="ens3f0,ens3f1" --teamconfig="{\"runner\": {\"name\": \"activebackup\"}}"
 
-# network --bootproto=static --device=ens3f0 --gateway={{gateway}} --ip={{host_management_ip}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --hostname={{inventory_hostname}}.{{domain}}
+# network --bootproto=static --device=ens3f0 --gateway={{gateway}} --ip={{os_ip_address}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --hostname={{inventory_hostname}}.{{domain}}
 
 
 firewall --enabled --service ssh
@@ -41,7 +41,7 @@ lang {{language}}
 # logging --level=info
 
 # Root password - use 'opennssl passwd -6'
-rootpw {{root_password}}
+rootpw --iscrypted {{encrypted_root_password}}
 
 # System authorization information
 authselect --enableshadow --passalgo=sha512

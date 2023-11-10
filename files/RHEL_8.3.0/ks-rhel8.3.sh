@@ -4,7 +4,7 @@
 cdrom
 
 # Network information
-network --bootproto=static --device=team0 --gateway={{gateway}} --ip={{host_management_ip}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --teamslaves="ens3f0,ens3f1" --teamconfig='{"runner": {"name": "activebackup"}}'
+network --bootproto=static --device=team0 --gateway={{gateway}} --ip={{os_ip_address}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --teamslaves="ens3f0,ens3f1" --teamconfig='{"runner": {"name": "activebackup"}}'
 
 
 repo --name "AppStream" --baseurl=file:///run/install/repo/AppStream/
@@ -28,7 +28,7 @@ lang {{language}}
 logging --level=info
 
 # Root password - use 'opennssl passwd -6'
-rootpw {{root_password}}
+rootpw --iscrypted {{encrypted_root_password}}
 
 # System authorization information
 authselect --enableshadow --passalgo=sha512

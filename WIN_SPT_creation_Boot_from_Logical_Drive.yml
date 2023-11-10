@@ -5,7 +5,7 @@
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/iLOvars.yml # Define the iLO local account to be created. This account is required by the community.general collection to manage an iLO
+    - vars/iLO_vars_encrypted.yml # Define the iLO local account to be created. This account is required by the community.general collection to manage an iLO
   vars:
     config: "{{ playbook_dir }}/oneview_config.json"
 

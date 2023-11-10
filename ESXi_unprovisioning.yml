@@ -1,13 +1,16 @@
 #   Playbook for server unprovisioning:
+#     - Put the ESXi server into maintenance mode
+#     - Do some ESXi server cleanup
+#     - Remove the server from vCenter
 #     - Power off the server
 #     - Delete the HPE OneView Server Profile
 #     - Remove the DNS record
 #     - Remove the host SSH key from .ssh/known_hosts on the Ansible control node
 #
 #   Commands that can be used to run this playbook:
-#     $ ansible-playbook -i "RHEL-1," ESXi_unprovisioning.yml 
-#     $ ansible-playbook -i "RHEL-1,ESX7-2" ESXi_unprovisioning.yml
-#     $ ansible-playbook -i hosts ESXi_unprovisioning.yml
+#     $ ansible-playbook -i "RHEL-1," ESXi_unprovisioning.yml --ask-vault-password 
+#     $ ansible-playbook -i "RHEL-1,ESX7-2" ESXi_unprovisioning.yml --ask-vault-password 
+#     $ ansible-playbook -i hosts ESXi_unprovisioning.yml --ask-vault-password 
 
 ---
 - name: Deleting provisioned compute module(s)
@@ -16,11 +19,13 @@
     - hpe.oneview
   gather_facts: no
   vars_files:
-    - vars/vcentervars.yml
+    - vars/ESXi7.0.u3_vars.yml
+    - vars/VMware_vCenter_vars_encrypted.yml
   vars:
     # HPE Synergy Composer configuration
     config: "{{ playbook_dir }}/oneview_config.json"
     inventory_fqdn: "{{ inventory_hostname | lower }}.{{ domain }}"
+    ansible_forks: 5
 
   tasks: 
 
@@ -145,8 +150,10 @@
 - name: Removing the DNS record from DNS server
   hosts: all
   gather_facts: no
+  vars:
+    ansible_forks: 5
   vars_files:
-    vars/windows_dns.yml
+    vars/Windows_DNS_vars_encrypted.yml
   tasks:
     - name: Removing "{{ inventory_hostname }}" from "{{ dns_server }}" 
       community.windows.win_dns_record:

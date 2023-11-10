@@ -5,9 +5,9 @@
 #     - Remove the host SSH key from .ssh/known_hosts on the Ansible control node
 #
 #   Commands that can be used to run this playbook:
-#     $ ansible-playbook -i "RHEL-1," Server_unprovisioning.yml 
-#     $ ansible-playbook -i "RHEL-1,ESX7-2" Server_unprovisioning.yml
-#     $ ansible-playbook -i hosts Server_unprovisioning.yml
+#     $ ansible-playbook -i "RHEL-1," Server_unprovisioning.yml --ask-vault-password 
+#     $ ansible-playbook -i "RHEL-1,ESX7-2" Server_unprovisioning.yml --ask-vault-password 
+#     $ ansible-playbook -i hosts Server_unprovisioning.yml --ask-vault-password 
 
 ---
 - name: Deleting provisioned compute module(s)
@@ -15,13 +15,13 @@
   collections:
     - hpe.oneview
   gather_facts: no
-
   vars:
     # HPE Synergy Composer configuration
     config: "{{ playbook_dir }}/oneview_config.json"
     # - ansible_python_interpreter: python3
     ansible_host_key_checking: false
     validate_certs: false
+    ansible_forks: 5
 
   tasks: 
 
@@ -82,8 +82,10 @@
 - name: Removing the DNS record from DNS server
   hosts: all
   gather_facts: no
+  vars:
+    ansible_forks: 5
   vars_files:
-    vars/windows_dns.yml
+    vars/Windows_DNS_vars_encrypted.yml
   tasks:
     - name: Removing "{{ inventory_hostname }}" from "{{ dns_server }}" 
       community.windows.win_dns_record:
