@@ -192,7 +192,7 @@
 
     # - debug: var=boot_lun_size
 
-    # Creation of the ks.tgz kickstart file
+    # Creation of the ks.cfg kickstart file
 
     - name: Creating kickstart file with %pre script to detect the "{{ boot_lun_size }}GB" Boot From SAN volume if it exists
       become: yes
