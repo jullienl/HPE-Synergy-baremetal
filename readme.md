@@ -167,7 +167,7 @@ To learn more about **Setting up Windows host**, see [https://docs.ansible.com/a
 11. To provision all hosts present in the corresponding inventory group, run the following command to have Ansible prompt you for the vault and sudo passwords:    
    `ansible-playbook <ESXi|RHEL|WIN>_provisioning.yml> -i hosts --ask-vault-pass --ask-become-pass`
   
-   For example, running `ansible-playbook ESXi_provisioning.yml` will provision all servers listed above in the [ESX] inventory group, i.e. ESX-1, and ESX-2.
+    For example, running `ansible-playbook ESXi_provisioning.yml` will provision all servers listed above in the [ESX] inventory group, i.e. ESX-1, and ESX-2.
 
 ## Built and tested with
 
