@@ -130,20 +130,28 @@ To learn more about **Setting up Windows host**, see [https://docs.ansible.com/a
     And copy/paste the content of `/vars/VMware_vCenter_vars_clear.yml` example in the editor using your own information.
 
 6. Secure your Windows credentials, using:   
-  `ansible-vault create vars/WIN_vars_encrypted.yml`   
-  And copy/paste the content of `/vars/WIN_vars_clear.yml` example in the editor using your own information.
+    ```
+    ansible-vault create vars/WIN_vars_encrypted.yml
+    ```   
+    And copy/paste the content of `/vars/WIN_vars_clear.yml` example in the editor using your own information.
 
 7. Secure your WinRM variables for the Windows hosts, using:   
-  `ansible-vault create vars/WinRM_vars_encrypted.yml`   
-  And copy/paste the content of `/vars/WinRM_vars_clear.yml` example in the editor using your own information.
+    ```
+    ansible-vault create vars/WinRM_vars_encrypted.yml
+    ```   
+    And copy/paste the content of `/vars/WinRM_vars_clear.yml` example in the editor using your own information.
 
 8. Secure your Windows DNS credentials, using:   
-  `ansible-vault create vars/Windows_DNS_vars_encrypted.yml`   
-  And copy/paste the content of `/vars/Windows_DNS_vars_clear.yml` example in the editor using your own information.
+    ```
+    ansible-vault create vars/Windows_DNS_vars_encrypted.yml
+    ```   
+    And copy/paste the content of `/vars/Windows_DNS_vars_clear.yml` example in the editor using your own information.
 
 9. Secure your iLO credentials, using:   
-  `ansible-vault create vars/iLO_vars_encrypted.yml`   
-  And copy/paste the content of `/vars/iLO_vars_clear.yml` example in the editor using your own information.
+    ```
+    ansible-vault create vars/iLO_vars_encrypted.yml
+    ```   
+    And copy/paste the content of `/vars/iLO_vars_clear.yml` example in the editor using your own information.
 
 10. Update the `hosts` Ansible inventory file with the list of servers to provision. 
 
