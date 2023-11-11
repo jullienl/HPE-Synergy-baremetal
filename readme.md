@@ -124,8 +124,10 @@ To learn more about **Setting up Windows host**, see [https://docs.ansible.com/a
      > **Note**: For ESXi, there is no need to install HPE drivers because HPE ESXi images include all the drivers and management software required to run ESXi on HPE servers, therefore there is no need to define a firmware baseline.
 
 5. Secure your VMware vCenter credentials using:   
-  `ansible-vault create vars/VMware_vCenter_vars_encrypted.yml`   
-  And copy/paste the content of `/vars/VMware_vCenter_vars_clear.yml` example in the editor using your own information.
+    ```
+    ansible-vault create vars/VMware_vCenter_vars_encrypted.yml
+    ```   
+    And copy/paste the content of `/vars/VMware_vCenter_vars_clear.yml` example in the editor using your own information.
 
 6. Secure your Windows credentials, using:   
   `ansible-vault create vars/WIN_vars_encrypted.yml`   
