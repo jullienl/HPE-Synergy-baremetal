@@ -145,24 +145,24 @@ To learn more about **Setting up Windows host**, see [https://docs.ansible.com/a
 
 10. Update the `hosts` Ansible inventory file with the list of servers to provision. 
 
-   Each server should be listed using a hostname in the corresponding inventory group along with the IP address that should be assigned to the operating system.
+    Each server should be listed using a hostname in the corresponding inventory group along with the IP address that should be assigned to the operating system.
    
-   You can use the `hosts` file example:
-   ```
-   [ESX]
-   ESX-1 os_ip_address=192.168.3.171 
-   ESX-2 os_ip_address=192.168.3.172 
+    You can use the `hosts` file example:
+    ```
+    [ESX]
+    ESX-1 os_ip_address=192.168.3.171 
+    ESX-2 os_ip_address=192.168.3.172 
 
-   [RHEL]
-   RHEL-1 os_ip_address=192.168.3.173 
-   RHEL-2 os_ip_address=192.168.3.174
+    [RHEL]
+    RHEL-1 os_ip_address=192.168.3.173 
+    RHEL-2 os_ip_address=192.168.3.174
 
-   [Windows]
-   WIN-1 os_ip_address=192.168.3.175
-   WIN-2 os_ip_address=192.168.3.176
-   ```
+    [Windows]
+    WIN-1 os_ip_address=192.168.3.175
+    WIN-2 os_ip_address=192.168.3.176
+    ```
 
-    > **Note**: Groups are defined by [...] like [ESX] in the example above. This group defines the list of ESX hosts that will be provisioned using the `ESXi_provisioning.yml` playbook. All hosts defined in this group will be provisioned in parallel by Ansible when the playbook is executed.
+     > **Note**: Groups are defined by [...] like [ESX] in the example above. This group defines the list of ESX hosts that will be provisioned using the `ESXi_provisioning.yml` playbook. All hosts defined in this group will be provisioned in parallel by Ansible when the playbook is executed.
 
 11. To provision all hosts present in the corresponding inventory group, run the following command to have Ansible prompt you for the vault and sudo passwords:    
    `ansible-playbook <ESXi|RHEL|WIN>_provisioning.yml> -i hosts --ask-vault-pass --ask-become-pass`
