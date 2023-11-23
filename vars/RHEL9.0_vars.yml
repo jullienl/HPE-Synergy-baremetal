@@ -16,7 +16,46 @@ domain: "lj.lab"
 # Name of the HPE OneView Server Profile Template that we will use to generate the HPE OneView Server Profile
 server_template: "RHEL_BFS_EG_100G"
 
+
+
+#------------------------ ISO settings -------------------------------------------------------------------------------------
+
+# URL where the BOOT ISO image can be found
+src_iso_url: "https://liogw.lj.lab/deployment/rhel90-x64/"
+# BOOT ISO file name
+src_iso_file: "rhel-baseos-9.0-x86_64-boot.iso"
+
+
+# Directory on the Ansible control node where the source ISO will be copied (will be created if not already present). 
+# Note: You must define a directory in your user home directory using {{ lookup('env','HOME') }}. 
+src_iso_directory: "{{ lookup('env','HOME') }}/ISOs/rhelisosrc"
+
+# Directory on the Ansible control node to stage all files to build and generate the new ISO image with the custom kickstart (will be created if not already present).
+# Note: You must define a directory in your user home directory using {{ lookup('env','HOME') }}. 
+staging_directory: "{{ lookup('env','HOME') }}/staging"
+
+# Folder located in <Ansible_project_dir>/files to store the kickstart and HPE AMS and SUT files
+# Using the template: RHEL_<version>. <version> can be found in .discinfo file in the root of src_iso_file iso
+rhel_version: "RHEL_9.0.0"
+
+# Version of the HPE Synergy Service Pack (SSP) that will be used to update the HPE drivers and firmware once the OS is installed
+SSP_version: "SY-2023.05.01"
+
+# Name of the kickstart file available in files/RHEL_<version>
+kickstart: "ks-rhel9.0.sh"
+
+# Name of the HPE Packages found in <Ansible_project_dir>/files
+AMS_package: "amsd-3.3.0-1773.7.rhel9.x86_64.rpm"
+iSUT_package: "sut-4.3.0-3.linux.x86_64.rpm"
+
+
+# RHEL repositories location (contains BaseOS and Appstream folders)
+# = Installation source URL (copy of the content of the DVD ISO image that contain the required repository and software packages)
+RHEL_repo_url:  "https://liogw.lj.lab/deployment/rhel90-x64"
+
+
 #------------------------ kickstart file customization ----------------------------------------------------------------------
+
 
 # Password for root
 # To create an encrypted passord, you can use the following command:
@@ -36,36 +75,6 @@ keyboard: "us"
 # To get the list of supported language values: locale -a | grep _
 language: "en_US"
 
-
-#------------------------ ISO settings -------------------------------------------------------------------------------------
-
-# OS vendor ISO file information
-src_iso_url: "https://liogw.lj.lab/deployment/rhel90-x64/"
-src_iso_file: "rhel-baseos-9.0-x86_64-dvd.iso"
-# src_iso_file: "rhel-baseos-9.0-x86_64-boot.iso"
-
-# Directory on the Ansible control node where the source ISO will be copied:
-src_iso_directory: "{{ lookup('env','HOME') }}/ISOs/rhelisosrc"
-
-# Directory on the Ansible control node to stage all files to build and generate the new ISO image with the custom kickstart:
-staging_directory: "{{ lookup('env','HOME') }}/staging"
-
-# Folder located in <Ansible_project_dir>/files to store the kickstart and HPE AMS and SUT files
-# Using the template: RHEL_<version>. <version> can be found in .discinfo file in the root of src_iso_file iso
-rhel_version: "RHEL_9.0.0"
-
-# Version of the HPE Synergy Service Pack (SSP) that will be used to update the HPE drivers and firmware once the OS is installed
-SSP_version: "SY-2023.05.01"
-
-# Name of the kickstart file available in files/RHEL_<version>
-kickstart: "ks-rhel9.0.sh"
-
-# Name of the HPE Packages founf in <Ansible_project_dir>/files
-AMS_package: "amsd-3.3.0-1773.7.rhel9.x86_64.rpm"
-iSUT_package: "sut-4.3.0-3.linux.x86_64.rpm"
-
-# RHEL repositories to be defined in kickstart to allow installation of packages not available in ISO
-
-RHEL_baseos: "https://liogw.lj.lab/deployment/rhel90-x64/BaseOS"
-RHEL_appstream: "https://liogw.lj.lab/deployment/rhel90-x64/appstream"
-
+# If true, create a NIC bonding using the first two connected NICs to set the network settings
+# If false, no NIC bonding is created. The first connected NIC found is used to set the network settings
+enable_nic_bonding: "true"

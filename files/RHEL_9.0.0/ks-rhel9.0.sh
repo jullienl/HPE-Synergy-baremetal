@@ -1,35 +1,60 @@
 #version=RHEL9.0
 
 
-# PRE-INSTALLATION SCRIPT
-%pre --interpreter=/usr/bin/bash --log=/var/log/kickstart_pre.log
+# Installation mode
+text
+# graphical
 
+
+# To be used with DVD ISO (named rhel-xxx-dvd.iso)
+# (contains the installer as well as a set of all packages)
+# cdrom
+
+# To be used with Boot ISO (named rhel-xxx-boot.iso)
+# (contains only the installer, but not any installable packages)
+url --url={{RHEL_repo_url}} --noverifyssl
+repo --name=BaseOS --baseurl={{RHEL_repo_url}}/BaseOS --noverifyssl
+
+
+# Network configuration 
+%include /tmp/network.ks
+ 
+%pre --interpreter=/usr/bin/bash --log=/tmp/kickstart_network_configuration.log
+
+echo "Network configuration: /tmp/network.ks or /var/log/network.ks"
+
+nicbonding="{{enable_nic_bonding}}"
+
+ip addr | grep -m 2 -i "state up" | awk '{ print $2 }' > /tmp/interface
+# Remove colon
+sed -i 's/:/\ /g' /tmp/interface
+# Merge the lines into a single line separated by a comma then remove spaces
+interface=`cat /tmp/interface | paste -sd ',' | tr -d ' '`
+
+if [[ "$nicbonding" == "true" ]]; then
+    # With bonding:
+    #  Create a team with the first two connected nics if any, 
+    #  If only one nic is connected, use only one nic in the team
+    echo "Network interfaces found: $interface"
+    echo "network --device=team0 --bondslaves=$interface --bootproto=static --ip={{os_ip_address}} --activate --onboot yes --noipv6 --netmask={{netmask}} --gateway={{gateway}} --nameserver={{nameserver}} --bondopts=mode=active-backup" >/tmp/network.ks
+
+else
+    # With no bonding:
+    #  Take only the first nic found
+    firstnic=$(echo "$interface" | cut -d ',' -f1)
+    echo "Network interface found: $firstnic"
+    echo "network --bootproto=static --ip={{os_ip_address}} --activate --onboot yes --noipv6 --netmask={{netmask}} --gateway={{gateway}} --nameserver={{nameserver}} --device=$firstnic" >/tmp/network.ks
+fi
+
+echo "Command set: $(</tmp/network.ks)" 
 %end
 
 
-# Use CDROM installation media
-cdrom
-
-
-# NETWORK, SELINUX, FIREWALL
-network --bootproto=static --device=team0 --gateway={{gateway}} --ip={{os_ip_address}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --teamslaves="ens3f0,ens3f1" --teamconfig="{\"runner\": {\"name\": \"activebackup\"}}"
-
-# network --bootproto=static --device=ens3f0 --gateway={{gateway}} --ip={{os_ip_address}} --nameserver={{nameserver}} --netmask={{netmask}} --activate --hostname={{inventory_hostname}}.{{domain}}
-
-
+# Firewall configuration
 firewall --enabled --service ssh
-
-# INSTALLATION SOURCE, EXTRA REPOSITOROIES, PACKAGE GROUPS, PACKAGES
-repo --name="AppStream" --baseurl=file:///run/install/repo/AppStream
-repo --name "BaseOS"    --baseurl=file:///run/install/repo/BaseOS/
-repo --name="AppStream_url" --baseurl={{RHEL_appstream}} --noverifyssl
-repo --name="BaseOS_url" --baseurl={{RHEL_baseos}} --noverifyssl
 
 # Reboot after installation
 reboot
-
-# Use text mode install
-text
 
 # Keyboard layouts
 keyboard --xlayouts={{keyboard}}
@@ -40,31 +65,29 @@ lang {{language}}
 # Installation logging level
 # logging --level=info
 
-# Root password - use 'opennssl passwd -6'
+# Root password 
 rootpw --iscrypted {{encrypted_root_password}}
 
 # System authorization information
 authselect --enableshadow --passalgo=sha512
 
 # SELinux configuration
-selinux --disabled
+# The default SELinux policy is enforcing
 
 # Run the Setup Agent on first boot
-firstboot --disable
+firstboot --enable
 
 # Do not configure the X Window System
 skipx
 
-# System services
-services --disabled="kdump,rpcbind,sendmail,postfix,chronyd"
+# System services - Enable time synchronisation daemon 
+services --enabled="chronyd"
 
 # System timezone
 timezone --utc {{timezone}} 
 timesource --ntp-server {{ntp_server}} 
 
-# Create additional repo during installation - REMOVED FROM HERE AS DO NOT OFFER THE NO GPGCHECK OPTION - MOVED TO %POST
-#repo --install --name="RHEL-9.0_baseos" --baseurl={{RHEL_baseos}} --noverifyssl
-#repo --install --name="RHEL-9.0_appstream" --baseurl={{RHEL_appstream}} --noverifyssl
+
 
 
 # Include the partitioning logic from the %pre section. 
@@ -74,16 +97,7 @@ timesource --ntp-server {{ntp_server}}
 # pre section
 %pre --log=/tmp/kickstart_pre.log
 
-echo "Currently mounted partitions"
-df -Th
-
-echo "=============================="
-echo "Available memory"
-free -m
-
 # Select the first drive that is the closest to SIZE, the size of the boot disk defined in the Server Profile
-
-
 SIZEinGB={{boot_lun_size}}
 # SIZEinGB=50
 
@@ -155,6 +169,9 @@ echo "Kickstart pre install script completed at: `date`"
 
 %end
 
+# bootloader --append="rhgb novga console=ttyS0,115200 console=tty0 panic=1" --location=mbr --boot-drive=$BOOTDRIVE
+bootloader --append="rhgb quiet crashkernel=auto"
+
 
 %packages
 @^minimal-environment
@@ -170,7 +187,11 @@ echo "Kickstart pre install script completed at: `date`"
 %end
 
 
-# POST-INSTALLATION SCRIPT in nochroot
+
+###############################################################################
+# Post-Installation Scripts (nochroot)
+###############################################################################
+
 %post --nochroot --log=/mnt/sysimage/var/log/kickstart_post_nochroot.log
 
 echo "Copying %pre stage log files in /var/log folder"
@@ -184,21 +205,28 @@ echo "Adding repos BaseOS and AppStream from web server"
 
 configure_yum_repos()
 {
-# Enable internal RHEL repos (baseOS + appstream).
-cat >> /mnt/sysimage/etc/yum.repos.d/rhel_web_repo.repo << RHEL
+# Enable internal RHEL repos (BaseOS + Appstream).
+    cat >> /mnt/sysimage/etc/yum.repos.d/rhel_web_repo.repo << EOF
 [RHEL-9.0_baseos]
 name=RHEL-9.0_baseos
-baseurl={{RHEL_baseos}}
+baseurl={{RHEL_repo_url}}/BaseOS
 enabled=1
-gpgcheck=0
+gpgcheck=1
+gpgkey={{RHEL_repo_url}}/RPM-GPG-KEY-redhat-release
 sslverify=0
+
 [RHEL-9.0_appstream]
 name=RHEL-9.0_appstream
-baseurl={{RHEL_appstream}}
+baseurl={{RHEL_repo_url}}/AppStream
 enabled=1
-gpgcheck=0
+gpgcheck=1
+gpgkey={{RHEL_repo_url}}/RPM-GPG-KEY-redhat-release
 sslverify=0
-RHEL
+EOF
+
+      # Enable the EPEL
+  rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
 }
 
 configure_yum_repos
@@ -212,7 +240,10 @@ cp /etc/machine-info /mnt/sysimage/etc/machine-info
 %end
 
 
-# POST-INSTALLATION SCRIPT in bash
+###############################################################################
+# Post-Installation Scripts
+###############################################################################
+
 %post --interpreter=/bin/bash --log=/var/log/kickstart_post.log
 
 echo "Installing Ansible SSH public key"
