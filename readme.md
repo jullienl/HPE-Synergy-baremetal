@@ -38,17 +38,43 @@ Note that UEFI secure boot is not supported, but can be enabled at a later date 
 
 ## Pre-requisites
 
-- A web server with ISO images of the various operating systems to be provisioned.
+- An Ansible control node running Ansible:
+  - With access to HPE Synergy Composer running HPE OneView and must also be connected to the management network where the servers will be deployed.
+
+  - With a storage volume large enough to host a copy of the ISO files, and the temporary extraction of an ISO and the new generated ISO with the customized kickstart for each server being provisioned 
+
+    > **Note**: 1TB+ is recommended if you plan to provision several servers in parallel. 
+
+  - At the right date and time to support the various time-dependent playbook operations. 
+
+- A web server containing ISO images of the different operating systems to be provisioned. 
+
+- A network location containing an installation source for each Linux version to be provisioned. 
+
+  > **Note**: To reduce the process of creating Red Hat (and community Enterprise Linux: CentOS, Alma Linux, Rocky Linux) customized ISO images, this projet uses BOOT ISO images (~700MB) instead of traditional DVD ISOs (~8GB). The BOOT ISO does not contain any installable packages. It is therefore necessary to set up an installation source that stores a copy of the DVD ISO image contents, so that the BOOT ISO image installer can access the software packages and start the installation.
+
+  > **Note**: To learn how to prepare an installation source using HTTP/HTTPS, see [Creating an installation source using HTTP or HTTPS](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/performing_a_standard_rhel_8_installation/prepare-installation-source_installing-rhel#creating-an-installation-source-on-http_prepare-installation-source)
+
+  > **Note**: The installation source URL which points to the extracted contents of the DVD ISO image is defined by the variable `<OS>_repo_url` in /vars.  
+
 - HPE Synergy frame configured and at least one unused Synergy 480 Gen10/Gen10 Plus compute module.
+
 - OneView Server Profile Templates defined for each desired OS with a local storage boot drive or a boot from SAN storage volume (see below for configuration).
-- OneView server profile templates must include the creation of an iLO local account. This account is required by the [community.general](https://galaxy.ansible.com/community/general) collection to manage an HPE iLO interface.
-- The `Hosts` inventory file needs to be updated. Each server should be listed in the corresponding inventory group along with the IP address that should be assigned to the operating system.
 
-- An Ansible control node with a storage volume large enough to host a copy of the ISO files, and the temporary extraction of an ISO and the new generated ISO with the customized kickstart for each server being provisioned 
+  > **Note**: OneView server profile templates must include the creation of an iLO local account. This account is required by the [community.general](https://galaxy.ansible.com/community/general) collection to manage an HPE iLO interface.
 
-   > **Note**: 1TB+ is recommended if you plan to provision several servers in parallel. 
+- The Ansible inventory file (i.e. [hosts](https://github.com/jullienl/HPE-COM-baremetal/blob/main/hosts)) needs to be updated. Each server should be listed in the corresponding inventory group along with its serial number and the IP address that should be assigned to the operating system.
 
-- Windows DNS server configured to be managed by Ansible (see below for configuration).
+- A Windows DNS server configured to be managed by Ansible. See below for more details.
+
+  > **Note**: To ensure the smooth operation of this project, it is essential that a DNS record exists for each provisioned server. For this reason, each playbook begins by creating a DNS record on the Windows DNS server defined in /vars. 
+
+  > **Note**: For this project, I'm using a Windows DNS server because my lab is managed by Microsoft Active Directory. If you want to use a Linux DNS server instead, you will need to modify the "Creating a DNS record for the bare metal server" task in each playbook to be compatible with a Unix-like operating systems. You can use the [community.general.nsupdate](https://docs.ansible.com/ansible/latest/collections/community/general/nsupdate_module.html) module to perform dynamic DNS updates when using a Linux DNS server.
+
+  > **Note**: If in your environment, DNS records for servers to be provisioned are created in advance, you can remove the "Create DNS record for bare metal server" task from the playbooks.
+
+
+> **Note**: This project utilizes the HPE iLO virtual media feature to mount ISO files for operating system installation. The capability known as "script/URL-based virtual media" is unique to the HPE iLO Advanced license. However, this specific license is not necessary with HPE Synergy as the HPE Synergy Composer includes these licenses by default. 
 
 ## Ansible control node information
 
@@ -65,7 +91,7 @@ To configure the Ansible control node, see [Ansible_control_node_requirements.md
 
 By default, Ansible executes tasks on a maximum of 5 hosts in parallel. If you want to increase the parallelism and have the provisioning tasks executed on more hosts simultaneously, you can modify this value directly in the playbooks using the `ansible_forks` variable.
 
-  > It's important to note that while parallel execution can significantly improve performance, it also increases resource consumption on the Ansible control machine. Therefore, it's recommended to test and tune the value of `ansible_forks` based on your specific environment to find the optimal balance between performance and resource usage.
+  > **Note**: It's important to note that while parallel execution can significantly improve performance, it also increases resource consumption on the Ansible control machine. Therefore, it's recommended to test and tune the value of `ansible_forks` based on your specific environment to find the optimal balance between performance and resource usage.
 
 ## Configure Windows DNS Server
 
@@ -78,13 +104,13 @@ To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https:/
 
 > **Note**: The purpose of this script is solely for training and development, and it is strongly advised against using it in a production environment since it enables both HTTP and HTTPS listeners with a self-signed certificate and enables Basic authentication that can be inherently insecure.
 
-To learn more about **Setting up Windows host**, see [https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup](https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup)
+> **Note**: To learn more about **Setting up Windows host**, see [https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup](https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup)
 
 ## Preparation to run the playbooks
 
 1. Clone or download this repository on your Ansible control node   
 
-2. Update all variables located in `/vars` and for the Windows host provisioning, the variable in `/group_vars/Windows.yml` 
+2. Update all variables located in `/vars` 
 
 3. Copy the operating system ISOs to a web server defined by the variables `src_iso_url` and `src_iso_file` 
 
@@ -171,6 +197,7 @@ To learn more about **Setting up Windows host**, see [https://docs.ansible.com/a
     WIN-1 os_ip_address=192.168.3.175
     WIN-2 os_ip_address=192.168.3.176
     ```
+     > **Note**: This list must be built using the hostname, not the FQDN. FQDNs are defined in playbooks using the `domain` variable defined in the vars files located in `/vars`. 
 
      > **Note**: Groups are defined by [...] like [ESX] in the example above. This group defines the list of ESX hosts that will be provisioned using the `ESXi_provisioning.yml` playbook. All hosts defined in this group will be provisioned in parallel by Ansible when the playbook is executed.
 
@@ -208,8 +235,7 @@ The GitHub CentOS8.2 branch provides the resources that were tested in 2021 on a
 
 The provisioned OS tested successfully are:
   - RHEL-8.3.0-20201009.2-x86_64-dvd1.iso  
-  - rhel-baseos-9.0-x86_64-dvd.iso 
-     > Note: Based on my experience, I encountered difficulties with the RHEL 9.x minimum image, specifically the rhel-baseos-9.0-x86_64-boot.iso (766MB) file. During the kickstart installation, it appeared to hang at the "Checking storage configuration" step. Therefore, I would suggest avoiding the use of RHEL 9.x minimum images due to this issue.
+  - rhel-baseos-9.0-x86_64-boot.iso
   - VMware-ESXi-7.0.2-17630552-HPE-702.0.0.10.6.5.27-Mar2021-Synergy.iso
   - VMware-ESXi-7.0.3-21930508-HPE-703.0.0.11.3.5.9-Aug2023-Synergy.iso
   - en-us_windows_server_version_2022_updated_october_2021_x64_dvd_b6e25591.iso
