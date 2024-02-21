@@ -93,18 +93,17 @@ By default, Ansible executes tasks on a maximum of 5 hosts in parallel. If you w
 
   > **Note**: It's important to note that while parallel execution can significantly improve performance, it also increases resource consumption on the Ansible control machine. Therefore, it's recommended to test and tune the value of `ansible_forks` based on your specific environment to find the optimal balance between performance and resource usage.
 
-## Configure Windows DNS Server
+## Windows DNS Server configuration
 
 The Windows DNS Server to be managed by Ansible should meet below requirements:
-- PowerShell 3.0 or newer
-- .NET 4.0 to be installed
-- A WinRM listener should be created and activated
+- A WinRM listener should be created and activated. 
+- A Windows user with administrative privileges or member of the **Remote Management Users** security group (allows connection to remote Windows DNS server via WinRM)
+- A Windows user with administrative privileges or member of the **DNSAdmins** security group (allows DNS records to be updated)
 
-To configure WinRM, you can simply run [ConfigureRemotingForAnsible.ps1](https://raw.githubusercontent.com/jullienl/HPE-Synergy-baremetal/master/files/ConfigureRemotingForAnsible.ps1) on the Windows Server to set up the basics. 
+> **Note**: Since Windows Server 2012, WinRM is enabled by default.
 
-> **Note**: The purpose of this script is solely for training and development, and it is strongly advised against using it in a production environment since it enables both HTTP and HTTPS listeners with a self-signed certificate and enables Basic authentication that can be inherently insecure.
+> **Note**: Find out more about how Ansible manages Microsoft Windows hosts, see [Windows Remote Management](https://docs.ansible.com/ansible/latest/os_guide/windows_winrm.html)
 
-> **Note**: To learn more about **Setting up Windows host**, see [https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup](https://docs.ansible.com/ansible/2.5/user_guide/windows_setup.html#winrm-setup)
 
 ## Preparation to run the playbooks
 
