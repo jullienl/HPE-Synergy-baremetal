@@ -103,13 +103,13 @@
         - "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$$/Setup/Scripts"
       delegate_to: localhost
 
-    - name: Download POSH script from GitHub to configure Windows for remote management with Ansible
-      become: yes
-      get_url:
-        url: https://raw.githubusercontent.com/jullienl/HPE-Synergy-baremetal/master/files/ConfigureRemotingForAnsible.ps1
-        dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1/Temp/winRM.ps1"
-        mode: "0775"
-      delegate_to: localhost
+    # - name: Download POSH script from GitHub to configure Windows for remote management with Ansible
+    #   become: yes
+    #   get_url:
+    #     url: https://raw.githubusercontent.com/jullienl/HPE-Synergy-baremetal/master/files/ConfigureRemotingForAnsible.ps1
+    #     dest: "{{ staging_directory }}/baremetal/{{ inventory_hostname }}/sources/$OEM$/$1/Temp/winRM.ps1"
+    #     mode: "0775"
+    #   delegate_to: localhost
 
     # Creating a Server Profile in HPE OneView from a boot from SAN Server Profile Template:
 
